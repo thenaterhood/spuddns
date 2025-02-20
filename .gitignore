@@ -1,0 +1,8 @@
+__pycache__
+bin
+spuddns
+*.out
+*.cov
+cover.html
+__pycache__
+bin
