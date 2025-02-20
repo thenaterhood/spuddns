@@ -1,0 +1,45 @@
+{
+    "add_cpe_id": "",
+    "bind_address": "127.0.0.1",
+    "dns_server_port": 53,
+    "dns_over_http_enable": false,
+    "dns_over_http_port": 8080,
+    "dns_over_tls_enable": false,
+    "dns_over_tls_cert_file": "server.crt",
+    "dns_over_tls_key_file": "server.key",
+    "dns_over_tls_port": 8530,
+    "do_not_cache": [
+        "127.0.0.0/16",
+        "*.example.com"
+    ],
+    "disable_cache": false,
+    "disable_metrics": false,
+    "forward_cpe_id": false,
+    "force_minimum_ttl": 90,
+    "log_level": -4,
+    "predictive_cache": true,
+    "resilient_cache": true,
+    "shared_secret": "",
+    "upstream_resolvers": [
+        "1.1.1.1"
+    ],
+    "conditional_forwards": {
+        "example.com": ["8.8.4.4"]
+    },
+    "respect_resolvconf": true,
+    "resolvconf_path": "./resolv.conf",
+    "enable_acls": false,
+    "acls": {
+        "example": {
+            "use_shared_cache": true,
+            "add_cpe_id": "",
+            "forward_cpe_id": true,
+            "upstream_resolvers": ["8.8.8.8"]
+        },
+        "*": {
+            "forward_cpe_id": true,
+            "use_shared_cache": true,
+            "add_cpe_id": "abc123"
+        }
+    }
+}
