@@ -29,3 +29,6 @@ jobs:
       # You can test your matrix by printing the current Go version
       - name: Display Go version
         run: go version
+
+      - name: Go test
+        run: go test ./...
