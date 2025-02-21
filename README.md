@@ -19,9 +19,12 @@ HTTPS server).
 Usage
 ============
 
-Build spuddns with `go build`. An ArchLinux PKGBUILD is also provided.
+Build spuddns with `go build`. An ArchLinux PKGBUILD is also provided
+and can be found in the "dist" directory.
 
-You can use spuddns in place of systemd-resolved or similar on your system.
+You can use spuddns in place of systemd-resolved or similar on your system. A systemd service file is provided, located in the "dist"
+directory. This service file assumes spuddns will be installed to
+/usr/bin/spuddns and the config file to /etc/spuddns.json.
 
 Default installation: Start spuddns. By default your /etc/resolv.conf will be respected. If you intend to use spuddns as your local 
 resolver, update the resolv conf path in /etc/spuddns.json to point to 

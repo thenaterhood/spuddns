@@ -1,0 +1,51 @@
+# Maintainer:  Nate Levesque <public at thenaterhood dot com>
+
+pkgname=spuddns-git
+_pkgname=spuddns
+_branch=main
+pkgver=0.0.1
+pkgrel=1
+epoch=
+pkgdesc="A caching DNS resolver"
+arch=('any')
+url="https://github.com/thenaterhood/spuddns"
+license=('MIT')
+groups=()
+depends=()
+makedepends=("go")
+checkdepends=()
+optdepends=()
+provides=()
+conflicts=()
+replaces=()
+backup=("etc/spuddns.json")
+options=()
+install=
+changelog=
+source=("git+https://github.com/thenaterhood/spuddns.git")
+sha256sums=('SKIP')
+validpgpkeys=()
+
+build() {
+  cd "${_pkgname}"
+
+  export CGO_LDFLAGS="${LDFLAGS}"
+  export CGO_CFLAGS="${CFLAGS}"
+  export CGO_CPPFLAGS="${CPPFLAGS}"
+  export CGO_CXXFLAGS="${CXXFLAGS}"
+  export GOFLAGS="-buildmode=pie -trimpath -ldflags=-linkmode=external -mod=readonly -modcacherw"
+
+  go build -o "build/${_pkgname}"
+}
+
+check() {
+  cd "${_pkgname}"
+  go test ./...
+}
+
+package() {
+  cd "${_pkgname}"
+  install -Dm755 build/$_pkgname "$pkgdir"/usr/bin/$_pkgname
+  install -Dm644 "${srcdir}/${_pkgname}/dist/spuddns.service" "${pkgdir}/usr/lib/systemd/system/spuddns.service"
+  install -Dm644 "${srcdir}/${_pkgname}/spuddns.default.json" "${pkgdir}/etc/spuddns.json"
+}

@@ -3,7 +3,7 @@ Description=spuddns DNS Resolver
 After=network.target
 
 [Service]
-ExecStart=/opt/spuddns /etc/spuddns.json
+ExecStart=/usr/bin/spuddns /etc/spuddns.json
 Restart=always
 ExecStop=/bin/kill -s QUIT $MAINPID
 TimeoutStopSec=6
