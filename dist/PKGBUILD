@@ -3,7 +3,7 @@
 pkgname=spuddns-git
 _pkgname=spuddns
 _branch=main
-pkgver=0.0.1
+pkgver=7c6198b
 pkgrel=1
 epoch=
 pkgdesc="A caching DNS resolver"
@@ -25,6 +25,17 @@ changelog=
 source=("git+https://github.com/thenaterhood/spuddns.git")
 sha256sums=('SKIP')
 validpgpkeys=()
+
+pkgver() {
+  cd "$srcdir/${_pkgname}"
+  nice=$(git describe --long | sed 's/\([^-]*-g\)/r\1/;s/-/./g' 2>/dev/null)
+  commit=$(git rev-parse --short HEAD 2>/dev/null)
+  if [ -z "$nice" ]; then
+     echo $commit
+  else
+     echo "$nice"
+  fi
+}
 
 build() {
   cd "${_pkgname}"
