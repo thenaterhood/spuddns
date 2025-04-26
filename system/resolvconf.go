@@ -156,7 +156,7 @@ func makeQualified(name string) string {
 	}
 
 	if name[len(name)-1] != '.' {
-		name = name + "."
+		return name + "."
 	}
 
 	return name

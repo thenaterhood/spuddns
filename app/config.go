@@ -209,7 +209,7 @@ func (cfg AppConfig) GetUpstreamResolvers(name string) []string {
 			if host == "" {
 				host = segment
 			} else {
-				host = fmt.Sprintf("%s.%s", segment, host)
+				host = segment + "." + host
 			}
 		}
 	}
@@ -241,7 +241,7 @@ func (cfg AppConfig) GetACItem(key *string, ip *string) (*AclItem, error) {
 	}
 
 	if ip != nil {
-		acl, ok := cfg.ACLs[fmt.Sprintf("ip:%s", *ip)]
+		acl, ok := cfg.ACLs["ip:"+*ip]
 		if ok {
 			return &acl, nil
 		}
