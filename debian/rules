@@ -2,7 +2,6 @@
 export DH_VERBOSE = 1
 
 export GOFLAGS=-trimpath
-export DH_GOLANG_BUILDPKG=github.com/thenaterhood/spuddns
 export DH_GOLANG_GO_GENERATE=1
 
 %:
