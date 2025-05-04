@@ -30,7 +30,7 @@ jobs:
       - name: Build debian
         run: |
           mkdir -p github.com/thenaterhood/spuddns
-          cp -r * github.com/thenaterhood/spuddns/
+          cp -r !(github.com) github.com/thenaterhood/spuddns/
           dpkg-buildpackage
 
       - name: Upload package
