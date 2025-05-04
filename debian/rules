@@ -17,3 +17,6 @@ override_dh_auto_install:
 
 override_dh_installsystemd:
 	dh_installsystemd --name=spuddns
+
+override_dh_dwz:
+	echo "skipping dwz"
