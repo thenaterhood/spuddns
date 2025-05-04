@@ -33,4 +33,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: spuddns-debian-package
-          path: *.deb
+          path: "*.deb"
