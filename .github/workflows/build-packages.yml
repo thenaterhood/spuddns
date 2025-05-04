@@ -58,11 +58,10 @@ jobs:
           cp spuddns build/spuddns
           dpkg-buildpackage
           pwd
-          ls -l
           ls -l ..
 
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
           name: spuddns-debian-package
-          path: ../*amd64*
+          path: /home/runner/work/spuddns/*amd64*
