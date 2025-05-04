@@ -21,9 +21,11 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.x'
-      # You can test your matrix by printing the current Go version
       - name: Display Go version
         run: go version
+
+      - name: Install dependencies
+        run: apt install -y build-essential debhelper dh-golang
 
       - name: Build debian
         run: |
