@@ -2,6 +2,7 @@
 export DH_VERBOSE = 1
 
 export GOFLAGS=-trimpath
+export DH_GOLANG_BUILDPKG=src
 export DH_GOLANG_GO_GENERATE=1
 
 %:
