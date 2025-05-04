@@ -57,6 +57,9 @@ jobs:
           mkdir -p build
           cp spuddns build/spuddns
           dpkg-buildpackage
+          pwd
+          ls -l
+          ls -l ..
 
       - name: Upload package
         uses: actions/upload-artifact@v4
