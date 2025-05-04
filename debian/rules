@@ -11,7 +11,7 @@ export DH_GOLANG_GO_GENERATE=1
 	dh $@ --buildsystem=golang --with=golang
 
 override_dh_auto_build:
-	go build -o build/spuddns
+	test -f build/spuddns || go build -o build/spuddns
 
 override_dh_auto_test:
 	go test ./...
