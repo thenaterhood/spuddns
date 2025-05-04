@@ -1,12 +1,6 @@
 #!/usr/bin/make -f
 #export DH_VERBOSE = 1
 
-export GOPATH=$(CURDIR)/go
-export GOCACHE=$(CURDIR)/go-build
-export GOFLAGS=-trimpath
-export DH_GOLANG_BUILDPKG=github.com/thenaterhood/spuddns
-export DH_GOLANG_GO_GENERATE=1
-
 %:
 	dh $@
 
