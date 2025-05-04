@@ -1,13 +1,20 @@
 #!/usr/bin/make -f
 #export DH_VERBOSE = 1
 
+export GOPATH=$(CURDIR)/go
+export GOCACHE=$(CURDIR)/go-build
+export GOFLAGS=-trimpath
+export DH_GOLANG_BUILDPKG=github.com/thenaterhood/spuddns
+export DH_GOLANG_GO_GENERATE=1
+
 %:
-	dh $@
+	dh $@ --buildsystem=golang --with=golang
 
 override_dh_auto_build:
-	cd $(CURDIR)
-	ls
-	GOPATH=$(CURDIR) go build -o build/spuddns
+	go build -o build/spuddns
+
+override_dh_auto_test:
+	go test ./...
 
 override_dh_auto_install:
 	install -D -m 0755 build/spuddns $(CURDIR)/debian/spuddns/usr/bin/spuddns
