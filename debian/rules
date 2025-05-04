@@ -5,7 +5,7 @@
 	dh $@
 
 override_dh_auto_build:
-	go build -o build/spuddns
+	cd $(CURDIR) && go build -o build/spuddns
 
 override_dh_auto_install:
 	install -D -m 0755 build/spuddns $(CURDIR)/debian/spuddns/usr/bin/spuddns
