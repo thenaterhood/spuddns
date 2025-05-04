@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-debian:
+  build-binary:
 
     runs-on: ubuntu-latest
 
@@ -24,15 +24,44 @@ jobs:
       - name: Display Go version
         run: go version
 
+      - name: Go build
+        run:
+          go build
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: spuddns-binary
+          path: spuddns
+
+  build-deb:
+
+    runs-on: ubuntu-latest
+
+    needs: build-binary
+
+    steps:
+
+      - uses: actions/checkout@v4
+
       - name: Install dependencies
         run: sudo apt install -y build-essential debhelper dh-golang
 
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: spuddns-binary
+
       - name: Build debian
         run: |
+          mkdir -p build
+          cp spuddns build/spuddns
           dpkg-buildpackage
+          pwd
+          ls -l ..
 
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
           name: spuddns-debian-package
-          path: "*.deb"
+          path: /home/runner/work/spuddns/*amd64*

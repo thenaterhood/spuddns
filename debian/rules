@@ -5,9 +5,10 @@
 	dh $@
 
 override_dh_auto_build:
-	cd $(CURDIR)
-	ls
-	GOPATH=$(CURDIR) go build -o build/spuddns
+	test -f build/spuddns || go build -o build/spuddns
+
+override_dh_auto_test:
+	echo "no test"
 
 override_dh_auto_install:
 	install -D -m 0755 build/spuddns $(CURDIR)/debian/spuddns/usr/bin/spuddns
@@ -16,3 +17,6 @@ override_dh_auto_install:
 
 override_dh_installsystemd:
 	dh_installsystemd --name=spuddns
+
+override_dh_dwz:
+	echo "skipping dwz"
