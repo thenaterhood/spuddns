@@ -254,12 +254,14 @@ func (ds *DnsServer) Start() error {
 		}()
 	}
 
-	ds.appState.Log.Info("starting DNS server", "port", ds.appConfig.DnsServerPort)
-	err := ds.standard_dns_server.ListenAndServe()
-	defer ds.standard_dns_server.Shutdown()
-	if err != nil {
-		ds.appState.Log.Error("failed to start server", "error", err.Error())
-	}
+	go func() {
+		ds.appState.Log.Info("starting DNS server", "port", ds.appConfig.DnsServerPort)
+		err := ds.standard_dns_server.ListenAndServe()
+		defer ds.standard_dns_server.Shutdown()
+		if err != nil {
+			ds.appState.Log.Error("failed to start server", "error", err.Error())
+		}
+	}()
 
 	return nil
 }
