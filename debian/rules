@@ -7,6 +7,9 @@
 override_dh_auto_build:
 	test -f build/spuddns || go build -o build/spuddns
 
+override_dh_auto_test:
+	echo "no test"
+
 override_dh_auto_install:
 	install -D -m 0755 build/spuddns $(CURDIR)/debian/spuddns/usr/bin/spuddns
 	install -D -m 0644 dist/spuddns.service $(CURDIR)/debian/spuddns/lib/systemd/system/spuddns.service
