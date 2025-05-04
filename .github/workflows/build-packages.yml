@@ -55,7 +55,7 @@ jobs:
       - name: Build debian
         run: |
           mkdir -p build
-          cp spuddns build/
+          cp spuddns-binary build/spuddns
           dpkg-buildpackage
 
       - name: Upload package
