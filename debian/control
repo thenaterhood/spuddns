@@ -2,7 +2,7 @@ Source: spuddns
 Section: net
 Priority: optional
 Maintainer: Nate Levesque <public@thenaterhood.com>
-Build-Depends: debhelper (>= 12), golang-go (>= 1.11), git, dh-golang
+Build-Depends: debhelper, git, dh-golang
 Standards-Version: 4.5.0
 Homepage: https://github.com/thenaterhood/spuddns
 Vcs-Git: https://github.com/thenaterhood/spuddns.git
