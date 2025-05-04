@@ -1,0 +1,17 @@
+Source: spuddns
+Section: net
+Priority: optional
+Maintainer: Nate Levesque <public@thenaterhood.com>
+Build-Depends: debhelper (>= 12), golang-go (>= 1.11), git, dh-golang
+Standards-Version: 4.5.0
+Homepage: https://github.com/thenaterhood/spuddns
+Vcs-Git: https://github.com/thenaterhood/spuddns.git
+Vcs-Browser: https://github.com/thenaterhood/spuddns
+
+Package: spuddns
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: A caching DNS resolver
+ SpudDNS is a caching DNS resolver written in Go.
+ It provides DNS resolution capabilities while caching 
+ results to improve performance.

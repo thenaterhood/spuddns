@@ -1,0 +1,5 @@
+spuddns (0.1.0-1) unstable; urgency=low
+
+  * Initial release.
+
+ -- Nate Levesque <public@thenaterhood.com>  $(date -R)

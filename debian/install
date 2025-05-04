@@ -1,0 +1,3 @@
+build/spuddns usr/bin
+dist/spuddns.service lib/systemd/system
+spuddns.default.json etc
