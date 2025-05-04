@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"syscall"
 
 	"github.com/thenaterhood/spuddns/app"
 	"github.com/thenaterhood/spuddns/cache"
@@ -12,6 +13,16 @@ import (
 	"github.com/thenaterhood/spuddns/server"
 	"github.com/thenaterhood/spuddns/system"
 )
+
+func dropPrivileges(uid, gid int) error {
+	if err := syscall.Setgid(gid); err != nil {
+		return err
+	}
+	if err := syscall.Setuid(uid); err != nil {
+		return err
+	}
+	return nil
+}
 
 func main() {
 	conffile := "./spuddns.json"
@@ -80,4 +91,12 @@ func main() {
 
 	dnsServer := server.NewDnsServer(*config, state)
 	dnsServer.Start()
+
+	if err := dropPrivileges(65534, 65534); err != nil {
+		state.Log.Warn("failed to drop privileges after initialization", "err", err)
+	} else {
+		state.Log.Debug("successfully dropped privileges after initialization")
+	}
+
+	select {}
 }
