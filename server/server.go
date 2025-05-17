@@ -233,35 +233,51 @@ func (ds *DnsServer) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 }
 
 func (ds *DnsServer) Start() error {
+
+	tls_ready := make(chan struct{})
+	http_ready := make(chan struct{})
+	dns_ready := make(chan struct{})
+
 	if ds.dns_over_tls_server != nil {
 		defer ds.dns_over_tls_server.Shutdown()
 		go func() {
 			ds.appState.Log.Info("starting DNS over HTTPS server", "addr", ds.dns_over_tls_server.Addr)
+			close(tls_ready)
 			err := ds.dns_over_tls_server.ListenAndServe()
 			if err != nil {
 				ds.appState.Log.Error("failed to start dns over https server", "error", err.Error())
 			}
 		}()
+	} else {
+		close(tls_ready)
 	}
 
 	if ds.dns_over_http_server != nil {
 		go func() {
 			ds.appState.Log.Info("start DNS over HTTP server", "addr", ds.dns_over_http_server.Addr)
+			close(http_ready)
 			err := ds.dns_over_http_server.ListenAndServe()
 			if err != nil {
 				ds.appState.Log.Error("failed to start dns over http server", "error", err.Error())
 			}
 		}()
+	} else {
+		close(http_ready)
 	}
 
 	go func() {
 		ds.appState.Log.Info("starting DNS server", "port", ds.appConfig.DnsServerPort)
+		close(dns_ready)
 		err := ds.standard_dns_server.ListenAndServe()
 		defer ds.standard_dns_server.Shutdown()
 		if err != nil {
 			ds.appState.Log.Error("failed to start server", "error", err.Error())
 		}
 	}()
+
+	<-tls_ready
+	<-http_ready
+	<-dns_ready
 
 	return nil
 }
