@@ -67,7 +67,7 @@ func (c *inMemoryCache) CacheDnsResponse(question dns.Question, response models.
 	return ret
 }
 
-func (c *inMemoryCache) GetDnsResponse(question dns.Question) (*models.DnsResponse, error) {
+func (c *inMemoryCache) getDnsResponse(question dns.Question) (*models.DnsResponse, error) {
 	timer := c.config.Metrics.GetCacheReadTimer()
 	defer c.config.Metrics.ObserveTimer(timer)
 
@@ -123,7 +123,7 @@ func (c *inMemoryCache) QueryDns(q models.DnsQuery) (*models.DnsResponse, error)
 	if q.FirstQuestion() == nil {
 		return nil, fmt.Errorf("query question was nil")
 	}
-	return c.GetDnsResponse(*q.FirstQuestion())
+	return c.getDnsResponse(*q.FirstQuestion())
 }
 
 func (c *inMemoryCache) SetExpireCallback(cb ExpireCallbackFn) {

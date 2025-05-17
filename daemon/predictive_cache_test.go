@@ -35,11 +35,12 @@ func getAppState(cache cache.Cache) *app.AppState {
 
 func waitForConsistency(cache cache.Cache, q dns.Question) (*models.DnsResponse, error) {
 	// this is jank
-	resp, err := cache.GetDnsResponse(q)
+	dnsQuery, _ := models.NewDnsQueryFromQuestions([]dns.Question{q})
+	resp, err := cache.QueryDns(*dnsQuery)
 	waited := 0
 
 	for resp == nil && err == nil && waited < 1000 {
-		resp, err = cache.GetDnsResponse(q)
+		resp, err = cache.QueryDns(*dnsQuery)
 		time.Sleep(10 * time.Nanosecond)
 		waited += 1
 	}
@@ -112,7 +113,7 @@ func TestRefreshExpiringCacheItem(t *testing.T) {
 		t.Errorf("unexpected error checking for refreshed item (should be refreshed): %v", err)
 	}
 	if resp == nil {
-		t.Errorf("frequently used cache item was not refreshed")
+		t.Fatalf("frequently used cache item was not refreshed")
 	}
 
 	answers, err := resp.Answers()
