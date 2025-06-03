@@ -56,11 +56,16 @@ func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse,
 	}
 
 	appCache := ds.appState.Cache
+
+	if accessControl != nil && !accessControl.UseSharedCache {
+		appCache = &cache.DummyCache{}
+	}
 	resolverConfig := resolver.DnsResolverConfig{
 		Servers:         []string{},
 		Metrics:         ds.appState.Metrics,
 		Logger:          ds.appState.Log,
 		ForceMimimumTtl: ds.appConfig.ForceMinimumTtl,
+		Cache:           appCache,
 	}
 
 	for _, alternateName := range ds.appConfig.GetFullyQualifiedNames(question.Name) {
@@ -78,13 +83,9 @@ func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse,
 			if len(accessControl.UpstreamResolvers) > 0 {
 				resolverConfig.Servers = accessControl.UpstreamResolvers
 			}
-
-			if !accessControl.UseSharedCache {
-				appCache = &cache.DummyCache{}
-			}
 		}
 
-		forwarder := cmp.Or(ds.appState.DefaultForwarder, resolver.GetDnsResolver(resolverConfig, appCache))
+		forwarder := cmp.Or(ds.appState.DefaultForwarder, resolver.GetDnsResolver(resolverConfig))
 		answer, err = modifiedQuery.ResolveWith(forwarder)
 
 		if answer != nil {

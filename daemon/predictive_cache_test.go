@@ -29,7 +29,8 @@ func getAppState(cache cache.Cache) *app.AppState {
 				"example.com": "203.0.113.1",
 				"google.com":  "203.0.113.2",
 			},
-		}, cache),
+			Cache: cache,
+		}),
 	}
 }
 
@@ -119,6 +120,10 @@ func TestRefreshExpiringCacheItem(t *testing.T) {
 	answers, err := resp.Answers()
 	if err != nil {
 		t.Errorf("unexpected error getting answers: %v", err)
+	}
+
+	if answers == nil {
+		t.Fatalf("answers were nil")
 	}
 
 	expectedAnswers, _ := answer.Answers()

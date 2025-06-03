@@ -17,14 +17,11 @@ type DnsResolverConfig struct {
 	Metrics         metrics.MetricsInterface
 	Static          map[string]string
 	ForceMimimumTtl int
-}
-
-type DnsResolver interface {
-	QueryDns(q models.DnsQuery) (*models.DnsResponse, error)
+	Cache           models.DnsQueryClient
 }
 
 type multiClient struct {
-	clients []DnsResolver
+	clients []models.DnsQueryClient
 	config  DnsResolverConfig
 }
 
@@ -50,15 +47,15 @@ func (mc *multiClient) QueryDns(query models.DnsQuery) (*models.DnsResponse, err
 	return models.NewNXDomainDnsResponse(), nil
 }
 
-func GetDnsResolver(clientConfig DnsResolverConfig, dnsCache models.DnsQueryClient) DnsResolver {
+func GetDnsResolver(clientConfig DnsResolverConfig) models.DnsQueryClient {
 	staticDnsClient := staticClient{clientConfig}
 
-	clients := []DnsResolver{
+	clients := []models.DnsQueryClient{
 		staticDnsClient,
 	}
 
-	if dnsCache != nil {
-		clients = append(clients, dnsCache)
+	if clientConfig.Cache != nil {
+		clients = append(clients, clientConfig.Cache)
 	}
 
 	for _, resolver := range clientConfig.Servers {

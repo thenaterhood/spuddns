@@ -28,7 +28,8 @@ func getAppState(cache cache.Cache) *app.AppState {
 				"example.com": "127.0.0.1",
 				"google.com":  "127.0.0.2",
 			},
-		}, cache),
+			Cache: cache,
+		}),
 	}
 }
 

@@ -54,7 +54,7 @@ func (minder CacheMinder) RefreshExpiringCacheItem(q dns.Question, expiring mode
 			Logger:  minder.appState.Log,
 		}
 
-		forwarder = resolver.GetDnsResolver(resolverConfig, nil)
+		forwarder = resolver.GetDnsResolver(resolverConfig)
 	}
 
 	response, err := forwarder.QueryDns(*query)
@@ -62,7 +62,7 @@ func (minder CacheMinder) RefreshExpiringCacheItem(q dns.Question, expiring mode
 		minder.appState.Log.Warn("failed to re-run common query", "query", q.Name, "error", err)
 	}
 
-	if response == nil && minder.appConfig.ResilientCache {
+	if (response == nil || err != nil) && minder.appConfig.ResilientCache {
 		minder.appState.Log.Warn("re-caching last value (resilient cache)", "query", q.Name, "qtype", q.Qtype)
 		minder.appState.Metrics.IncQueriesResilientlyRefreshed()
 		response = &expiring
