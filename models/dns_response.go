@@ -211,6 +211,7 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 	d.bumpAnswerTTLs()
 
 	resp := new(dns.Msg)
+	resp.RecursionAvailable = true // TODO should get updated based on whether we have upstreams
 	resp.SetReply(msg)
 	resp.Rcode = d.msg.Rcode
 
