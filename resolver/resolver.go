@@ -11,13 +11,14 @@ import (
 )
 
 type DnsResolverConfig struct {
-	Servers         []string
-	Logger          *slog.Logger
-	Timeout         int
-	Metrics         metrics.MetricsInterface
-	Static          map[string]string
-	ForceMimimumTtl int
-	Cache           models.DnsQueryClient
+	Servers          []string
+	Logger           *slog.Logger
+	Timeout          int
+	Metrics          metrics.MetricsInterface
+	Static           map[string]string
+	ForceMimimumTtl  int
+	Cache            models.DnsQueryClient
+	DefaultForwarder models.DnsQueryClient
 }
 
 type multiClient struct {
@@ -72,6 +73,10 @@ func GetDnsResolver(clientConfig DnsResolverConfig) models.DnsQueryClient {
 				config,
 			})
 		}
+	}
+
+	if clientConfig.DefaultForwarder != nil {
+		clients = append(clients, clientConfig.DefaultForwarder)
 	}
 
 	return &multiClient{

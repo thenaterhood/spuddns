@@ -61,15 +61,16 @@ func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse,
 		appCache = &cache.DummyCache{}
 	}
 	resolverConfig := resolver.DnsResolverConfig{
-		Servers:         []string{},
-		Metrics:         ds.appState.Metrics,
-		Logger:          ds.appState.Log,
-		ForceMimimumTtl: ds.appConfig.ForceMinimumTtl,
-		Cache:           appCache,
+		Servers:          []string{},
+		Metrics:          ds.appState.Metrics,
+		Logger:           ds.appState.Log,
+		ForceMimimumTtl:  ds.appConfig.ForceMinimumTtl,
+		Cache:            appCache,
+		DefaultForwarder: ds.appState.DefaultForwarder,
 	}
 
 	for _, alternateName := range ds.appConfig.GetFullyQualifiedNames(question.Name) {
-		ds.appState.Log.Debug("trying name", "name", alternateName, "originalName", question.Name)
+		resolverConfig.Logger.Debug("trying name", "name", alternateName, "originalName", question.Name)
 		question.Name = alternateName
 		modifiedQuery, modifiedQueryErr := query.WithDifferentQuestion(*question)
 		if modifiedQueryErr != nil {
@@ -85,7 +86,7 @@ func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse,
 			}
 		}
 
-		forwarder := cmp.Or(ds.appState.DefaultForwarder, resolver.GetDnsResolver(resolverConfig))
+		forwarder := resolver.GetDnsResolver(resolverConfig)
 		answer, err = modifiedQuery.ResolveWith(forwarder)
 
 		if answer != nil {
