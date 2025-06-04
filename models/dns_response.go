@@ -101,6 +101,14 @@ func NewRefusedDnsResponse() *DnsResponse {
 	}
 }
 
+func NewNoErrorDnsResponse() *DnsResponse {
+	msg := new(dns.Msg)
+	msg.Rcode = dns.RcodeSuccess
+	return &DnsResponse{
+		msg: msg,
+	}
+}
+
 func (d *DnsResponse) Equal(other *DnsResponse) bool {
 	if other == nil && d == nil {
 		return true

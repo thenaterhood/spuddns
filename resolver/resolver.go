@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/thenaterhood/spuddns/app"
 	"github.com/thenaterhood/spuddns/metrics"
 	"github.com/thenaterhood/spuddns/models"
 )
@@ -19,6 +20,7 @@ type DnsResolverConfig struct {
 	ForceMimimumTtl  int
 	Cache            models.DnsQueryClient
 	DefaultForwarder models.DnsQueryClient
+	AppConfig        *app.AppConfig
 }
 
 type multiClient struct {

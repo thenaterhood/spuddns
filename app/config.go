@@ -190,8 +190,20 @@ func (cfg AppConfig) GetFullyQualifiedNames(name string) []string {
 	return cfg.ResolvConf.GetFullyQualifiedNames(name)
 }
 
-func (cfg AppConfig) GetUpstreamResolvers(name string) []string {
+func (cfg AppConfig) GetUpstreamResolvers(name string, clientId *string, clientIp *string) []string {
 	upstreamResolvers := []string{}
+	accessControl, err := cfg.GetACItem(clientId, clientIp)
+
+	if err != nil {
+		return []string{}
+	}
+
+	if accessControl != nil {
+		if len(accessControl.UpstreamResolvers) > 0 {
+			return accessControl.UpstreamResolvers
+		}
+	}
+
 	if len(cfg.ConditionalForwards) > 0 {
 		subs := strings.Split(name, ".")
 		slices.Reverse(subs)

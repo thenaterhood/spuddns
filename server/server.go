@@ -67,24 +67,19 @@ func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse,
 		ForceMimimumTtl:  ds.appConfig.ForceMinimumTtl,
 		Cache:            appCache,
 		DefaultForwarder: ds.appState.DefaultForwarder,
+		AppConfig:        ds.appConfig,
 	}
 
-	for _, alternateName := range ds.appConfig.GetFullyQualifiedNames(question.Name) {
+	for _, alternateName := range resolverConfig.AppConfig.GetFullyQualifiedNames(question.Name) {
 		resolverConfig.Logger.Debug("trying name", "name", alternateName, "originalName", question.Name)
 		question.Name = alternateName
 		modifiedQuery, modifiedQueryErr := query.WithDifferentQuestion(*question)
 		if modifiedQueryErr != nil {
-			ds.appState.Log.Warn("alternate name query was invalid", "alternateName", alternateName, "error", err)
+			resolverConfig.Logger.Warn("alternate name query was invalid", "alternateName", alternateName, "error", err)
 			continue
 		}
 
-		resolverConfig.Servers = ds.appConfig.GetUpstreamResolvers(alternateName)
-
-		if accessControl != nil {
-			if len(accessControl.UpstreamResolvers) > 0 {
-				resolverConfig.Servers = accessControl.UpstreamResolvers
-			}
-		}
+		resolverConfig.Servers = resolverConfig.AppConfig.GetUpstreamResolvers(alternateName, query.ClientId, query.ClientIp)
 
 		forwarder := resolver.GetDnsResolver(resolverConfig)
 		answer, err = modifiedQuery.ResolveWith(forwarder)
@@ -97,9 +92,9 @@ func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse,
 			}
 
 			if answer.FromCache {
-				ds.appState.Metrics.IncQueriesAnsweredFromCache()
+				resolverConfig.Metrics.IncQueriesAnsweredFromCache()
 			}
-			ds.appState.Metrics.IncQueriesAnswered()
+			resolverConfig.Metrics.IncQueriesAnswered()
 			return answer, nil
 		}
 	}
@@ -110,7 +105,7 @@ func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse,
 	} else if answer == nil {
 		answer = models.NewNXDomainDnsResponse()
 	} else if answers, _ := answer.Answers(); len(answers) < 1 {
-		answer = models.NewNXDomainDnsResponse()
+		answer = models.NewNoErrorDnsResponse()
 	}
 
 	return answer, err

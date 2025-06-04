@@ -47,7 +47,7 @@ func (minder CacheMinder) RefreshExpiringCacheItem(q dns.Question, expiring mode
 			servers = append(servers, expiring.Resolver)
 		}
 
-		servers = append(servers, minder.appConfig.GetUpstreamResolvers(q.Name)...)
+		servers = append(servers, minder.appConfig.GetUpstreamResolvers(q.Name, nil, nil)...)
 		resolverConfig := resolver.DnsResolverConfig{
 			Servers: servers,
 			Metrics: minder.appState.Metrics,
