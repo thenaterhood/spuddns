@@ -3,6 +3,7 @@ package models
 import (
 	"bytes"
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -110,6 +111,51 @@ func TestNewResponse(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAddsCNAMEForExpandedSearchDomain(t *testing.T) {
+	originalQuery := new(dns.Msg)
+	originalQuery.Question = []dns.Question{
+		{
+			Name:  "example.",
+			Qtype: 1,
+		},
+	}
+
+	expandedMsg := new(dns.Msg)
+	expandedMsg.Rcode = dns.RcodeSuccess
+	expandedMsgAnswer := DNSAnswer{
+		Name: "example.test.local.",
+		Type: dns.TypeA,
+		TTL:  30 * time.Second,
+		Data: "127.0.0.1",
+	}
+	rr, _ := expandedMsgAnswer.ToRR()
+	expandedMsg.Answer = append(expandedMsg.Answer, rr)
+
+	expectedResponseMsg := new(dns.Msg)
+	expandedMsg.Question = originalQuery.Question
+	expectedResponseMsg.Rcode = dns.RcodeSuccess
+	expandedMsgAnswerCname := DNSAnswer{
+		Name: "example.",
+		Type: dns.TypeCNAME,
+		TTL:  30 * time.Second,
+		Data: "example.test.local.",
+	}
+	cnameRr, _ := expandedMsgAnswerCname.ToRR()
+	// Deliberately the same RR as above
+	expectedResponseMsg.Answer = append(expectedResponseMsg.Answer, cnameRr, rr)
+
+	beforeCname, err := NewDnsResponseFromMsg(expandedMsg)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	responseMsg := beforeCname.AsReplyToMsg(originalQuery)
+
+	if slices.Equal(responseMsg.Answer, expectedResponseMsg.Answer) {
+		t.Errorf("CNAME was not added properly")
 	}
 }
 
