@@ -109,6 +109,35 @@ func NewNoErrorDnsResponse() *DnsResponse {
 	}
 }
 
+func (d *DnsResponse) ChangeName(name string) {
+	/**
+	 * Alters the name used in the answers. This is
+	 * intended to be used to convert a DNS answer from
+	 * an expanded name back to the original name.
+	 */
+	answers := []dns.RR{}
+
+	if d.msg != nil {
+		for _, a := range d.msg.Answer {
+
+			dnsAnswer, err := NewDnsAnswerFromRR(a)
+			if err != nil {
+				continue
+			}
+
+			dnsAnswer.Name = name
+
+			rr, err := dnsAnswer.ToRR()
+			if err != nil {
+				continue
+			}
+
+			answers = append(answers, rr)
+		}
+	}
+	d.msg.Answer = answers
+}
+
 func (d *DnsResponse) Equal(other *DnsResponse) bool {
 	if other == nil && d == nil {
 		return true
@@ -217,6 +246,18 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 		return nil
 	}
 	d.bumpAnswerTTLs()
+
+	query, err := NewDnsQueryFromMsg(msg)
+	if err == nil {
+		// TODO dont have this be a silent failure
+		// This is needed so that clients receive an
+		// answer for the host they requested rather
+		// than an expanded version with the search
+		// domain. Some handle the expanded version
+		// but many don't.
+		question := query.FirstQuestion()
+		d.ChangeName(question.Name)
+	}
 
 	resp := new(dns.Msg)
 	resp.RecursionAvailable = true // TODO should get updated based on whether we have upstreams
