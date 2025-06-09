@@ -258,6 +258,8 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 		return nil
 	}
 
+	d.bumpAnswerTTLs()
+
 	query, err := NewDnsQueryFromMsg(msg)
 	if err == nil {
 		// TODO dont have this be a silent failure
@@ -271,8 +273,6 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 			d.ChangeName(question.Name)
 		}
 	}
-
-	d.bumpAnswerTTLs()
 
 	resp := new(dns.Msg)
 	resp.RecursionAvailable = true // TODO should get updated based on whether we have upstreams
