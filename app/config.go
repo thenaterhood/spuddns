@@ -163,20 +163,23 @@ func (cfg AppConfig) IsCacheable(query dns.Question, data *models.DnsResponse) b
 		}
 
 		// Network (in response)
-		answerNet := strToIpNet(item.Data)
-		if answerNet == nil {
-			return false
-		}
+		if item.Type == dns.TypeA || item.Type == dns.TypeAAAA {
+			answerNet := strToIpNet(item.Data)
+			if answerNet == nil {
+				return false
+			}
 
-		dns_ip := answerNet.IP
+			dns_ip := answerNet.IP
 
-		if dns_ip != nil {
-			for _, skip_net := range cfg.skip_cache_nets {
-				if skip_net.Contains(dns_ip) {
-					return false
+			if dns_ip != nil {
+				for _, skip_net := range cfg.skip_cache_nets {
+					if skip_net.Contains(dns_ip) {
+						return false
+					}
 				}
 			}
 		}
+
 	}
 
 	return true
