@@ -118,14 +118,26 @@ func (d *DnsResponse) ChangeName(name string) {
 	answers := []dns.RR{}
 
 	if d.msg != nil {
-		for _, a := range d.msg.Answer {
+		for idx, a := range d.msg.Answer {
 
 			dnsAnswer, err := NewDnsAnswerFromRR(a)
 			if err != nil {
 				continue
 			}
 
-			dnsAnswer.Name = name
+			if idx == 0 && dnsAnswer.Name != name {
+				// Create a CNAME chain
+				cname := DNSAnswer{
+					Name: name,
+					Type: dns.TypeCNAME,
+					TTL:  dnsAnswer.TTL,
+					Data: dnsAnswer.Name,
+				}
+				cnameRR, err := cname.ToRR()
+				if err == nil {
+					answers = append(answers, cnameRR)
+				}
+			}
 
 			rr, err := dnsAnswer.ToRR()
 			if err != nil {
@@ -245,7 +257,6 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 	if d.msg == nil {
 		return nil
 	}
-	d.bumpAnswerTTLs()
 
 	query, err := NewDnsQueryFromMsg(msg)
 	if err == nil {
@@ -260,6 +271,8 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 			d.ChangeName(question.Name)
 		}
 	}
+
+	d.bumpAnswerTTLs()
 
 	resp := new(dns.Msg)
 	resp.RecursionAvailable = true // TODO should get updated based on whether we have upstreams
