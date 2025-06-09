@@ -256,7 +256,9 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 		// domain. Some handle the expanded version
 		// but many don't.
 		question := query.FirstQuestion()
-		d.ChangeName(question.Name)
+		if question != nil {
+			d.ChangeName(question.Name)
+		}
 	}
 
 	resp := new(dns.Msg)
