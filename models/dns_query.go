@@ -181,6 +181,19 @@ func (d *DnsQuery) SetCpeId(cpeId string) *DnsQuery {
 	return d
 }
 
+func (d DnsQuery) ResolveWithAsync(client DnsQueryClient, response chan *DnsResponse) {
+	go func() {
+		answer, err := d.ResolveWith(client)
+
+		if answer != nil && err == nil {
+			response <- answer
+			return
+		}
+
+		response <- nil
+	}()
+}
+
 func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 	answers := []DNSAnswer{}
 	fromCache := false
@@ -223,6 +236,56 @@ func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 	response.FromCache = fromCache
 
 	return response, nil
+}
+
+func (d DnsQuery) NameExists(client DnsQueryClient) bool {
+	aChannel := make(chan *DnsResponse)
+	aaaaChannel := make(chan *DnsResponse)
+
+	if d.FirstQuestion().Qtype != dns.TypeA {
+		aQuery, err := d.WithDifferentQuestion(dns.Question{
+			Name:   d.FirstQuestion().Name,
+			Qtype:  dns.TypeA,
+			Qclass: d.FirstQuestion().Qclass,
+		})
+
+		if err == nil && aQuery != nil {
+			aQuery.ResolveWithAsync(client, aChannel)
+		} else {
+			close(aChannel)
+		}
+	} else {
+		close(aChannel)
+	}
+
+	if d.FirstQuestion().Qtype != dns.TypeAAAA {
+		aaaaQuery, err := d.WithDifferentQuestion(dns.Question{
+			Name:   d.FirstQuestion().Name,
+			Qtype:  dns.TypeAAAA,
+			Qclass: d.FirstQuestion().Qclass,
+		})
+
+		if err == nil && aaaaQuery != nil {
+			aaaaQuery.ResolveWithAsync(client, aaaaChannel)
+		} else {
+			close(aaaaChannel)
+		}
+	} else {
+		close(aaaaChannel)
+	}
+
+	aResult := <-aChannel
+	aaaResult := <-aaaaChannel
+
+	if aResult != nil && aResult.IsSuccess() {
+		return true
+	}
+
+	if aaaResult != nil && aaaResult.IsSuccess() {
+		return true
+	}
+
+	return false
 }
 
 // Clear extra RRs from the query message

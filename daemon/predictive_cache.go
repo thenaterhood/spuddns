@@ -39,23 +39,21 @@ func (minder CacheMinder) RefreshExpiringCacheItem(q dns.Question, expiring mode
 		return
 	}
 
-	forwarder := minder.appState.DefaultForwarder
-	if forwarder == nil {
-		servers := []string{}
+	servers := []string{}
 
-		if expiring.Resolver != "" {
-			servers = append(servers, expiring.Resolver)
-		}
-
-		servers = append(servers, minder.appConfig.GetUpstreamResolvers(q.Name, nil, nil)...)
-		resolverConfig := resolver.DnsResolverConfig{
-			Servers: servers,
-			Metrics: minder.appState.Metrics,
-			Logger:  minder.appState.Log,
-		}
-
-		forwarder = resolver.GetDnsResolver(resolverConfig)
+	if expiring.Resolver != "" {
+		servers = append(servers, expiring.Resolver)
 	}
+
+	servers = append(servers, minder.appConfig.GetUpstreamResolvers(q.Name, nil, nil)...)
+	resolverConfig := resolver.DnsResolverConfig{
+		Servers:          servers,
+		Metrics:          minder.appState.Metrics,
+		Logger:           minder.appState.Log,
+		DefaultForwarder: minder.appState.DefaultForwarder,
+	}
+
+	forwarder := resolver.GetDnsResolver(resolverConfig)
 
 	response, err := forwarder.QueryDns(*query)
 	if err != nil {
@@ -84,7 +82,7 @@ func (minder CacheMinder) RefreshExpiringCacheItem(q dns.Question, expiring mode
 		// revisited because a semi-active item that doesn't see enough queries in the
 		// TTL won't stay populated in the cache.
 		if minder.appState.DnsPipeline != nil {
-			minder.appState.Log.Debug("re-cached common query", "query", q.Name, "ttl", response.GetTtl())
+			minder.appState.Log.Debug("re-caching common query", "query", q.Name, "ttl", response.GetTtl())
 			*minder.appState.DnsPipeline <- models.DnsExchange{Question: q, Response: *response}
 		}
 	} else {

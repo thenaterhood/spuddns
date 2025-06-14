@@ -109,45 +109,59 @@ func NewNoErrorDnsResponse() *DnsResponse {
 	}
 }
 
+func (d *DnsResponse) InsertAnswer(answer DNSAnswer) error {
+	if d.msg == nil {
+		d.msg = new(dns.Msg)
+		d.msg.Rcode = dns.RcodeSuccess
+	}
+
+	rr, err := answer.ToRR()
+	if err != nil {
+		return err
+	}
+
+	answers := []dns.RR{rr}
+	answers = append(answers, d.msg.Answer...)
+
+	d.msg.Answer = answers
+
+	return nil
+}
+
+func (d *DnsResponse) ChangeNameFrom(original string, to string, ttl time.Duration) {
+	if d.msg == nil {
+		d.msg = new(dns.Msg)
+		d.msg.Rcode = dns.RcodeSuccess
+	}
+
+	cname := DNSAnswer{
+		Name: original,
+		Type: dns.TypeCNAME,
+		TTL:  ttl,
+		Data: to,
+	}
+
+	d.InsertAnswer(cname)
+}
+
 func (d *DnsResponse) ChangeName(name string) {
 	/**
 	 * Alters the name used in the answers. This is
 	 * intended to be used to convert a DNS answer from
 	 * an expanded name back to the original name.
 	 */
-	answers := []dns.RR{}
-
 	if d.msg != nil {
-		for idx, a := range d.msg.Answer {
-
-			dnsAnswer, err := NewDnsAnswerFromRR(a)
+		if len(d.msg.Answer) > 0 {
+			firstAnswer, err := NewDnsAnswerFromRR(d.msg.Answer[0])
 			if err != nil {
-				continue
+				return
 			}
 
-			if idx == 0 && dnsAnswer.Name != name {
-				// Create a CNAME chain
-				cname := DNSAnswer{
-					Name: name,
-					Type: dns.TypeCNAME,
-					TTL:  dnsAnswer.TTL,
-					Data: dnsAnswer.Name,
-				}
-				cnameRR, err := cname.ToRR()
-				if err == nil {
-					answers = append(answers, cnameRR)
-				}
+			if firstAnswer.Name != name && firstAnswer.Type != dns.TypeCNAME {
+				d.ChangeNameFrom(name, firstAnswer.Name, firstAnswer.TTL)
 			}
-
-			rr, err := dnsAnswer.ToRR()
-			if err != nil {
-				continue
-			}
-
-			answers = append(answers, rr)
 		}
 	}
-	d.msg.Answer = answers
 }
 
 func (d *DnsResponse) Equal(other *DnsResponse) bool {

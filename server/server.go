@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/miekg/dns"
 	"github.com/thenaterhood/spuddns/app"
@@ -24,6 +25,52 @@ type DnsServer struct {
 	standard_dns_server  *dns.Server
 	dns_over_tls_server  *dns.Server
 	dns_over_http_server *http.Server
+}
+
+func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver.DnsResolverConfig) (*models.DnsResponse, error) {
+	question := query.FirstQuestionCopy()
+	var answer *models.DnsResponse
+	var err error
+
+	names := ds.appConfig.GetFullyQualifiedNames(question.Name)
+
+	for _, alternateName := range names {
+		resolverConfig.Logger.Debug("trying name", "name", alternateName, "originalName", question.Name, "qtype", question.Qtype, "qclass", question.Qclass)
+		question.Name = alternateName
+		modifiedQuery, modifiedQueryErr := query.WithDifferentQuestion(*question)
+		if modifiedQueryErr != nil {
+			resolverConfig.Logger.Warn("alternate name query was invalid", "alternateName", alternateName, "error", err)
+			continue
+		}
+
+		resolverConfig.Servers = ds.appConfig.GetUpstreamResolvers(alternateName, query.ClientId, query.ClientIp)
+
+		forwarder := resolver.GetDnsResolver(resolverConfig)
+		answer, err = modifiedQuery.ResolveWith(forwarder)
+
+		if answer != nil && answer.IsSuccess() {
+			if ds.appState.DnsPipeline != nil {
+				go func() {
+					*ds.appState.DnsPipeline <- models.DnsExchange{Question: *query.FirstQuestion(), Response: *answer}
+				}()
+
+			}
+			return answer, nil
+		}
+
+		exists := modifiedQuery.NameExists(forwarder)
+		if exists {
+			answer := models.NewNoErrorDnsResponse()
+			answer.ChangeNameFrom(query.FirstQuestion().Name, alternateName, 5*time.Minute)
+			return answer, nil
+		}
+
+		if err != nil {
+			return models.NewServFailDnsResponse(), err
+		}
+	}
+
+	return models.NewNXDomainDnsResponse(), nil
 }
 
 func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse, error) {
@@ -69,42 +116,14 @@ func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse,
 		DefaultForwarder: ds.appState.DefaultForwarder,
 	}
 
-	for _, alternateName := range ds.appConfig.GetFullyQualifiedNames(question.Name) {
-		resolverConfig.Logger.Debug("trying name", "name", alternateName, "originalName", question.Name)
-		question.Name = alternateName
-		modifiedQuery, modifiedQueryErr := query.WithDifferentQuestion(*question)
-		if modifiedQueryErr != nil {
-			resolverConfig.Logger.Warn("alternate name query was invalid", "alternateName", alternateName, "error", err)
-			continue
+	answer, err = ds.resolveQuery(query, resolverConfig)
+
+	if answer != nil && answer.IsSuccess() {
+		if answer.FromCache {
+			resolverConfig.Metrics.IncQueriesAnsweredFromCache()
 		}
-
-		resolverConfig.Servers = ds.appConfig.GetUpstreamResolvers(alternateName, query.ClientId, query.ClientIp)
-
-		forwarder := resolver.GetDnsResolver(resolverConfig)
-		answer, err = modifiedQuery.ResolveWith(forwarder)
-
-		if answer != nil {
-			if ds.appState.DnsPipeline != nil {
-				go func() {
-					*ds.appState.DnsPipeline <- models.DnsExchange{Question: *question, Response: *answer}
-				}()
-			}
-
-			if answer.FromCache {
-				resolverConfig.Metrics.IncQueriesAnsweredFromCache()
-			}
-			resolverConfig.Metrics.IncQueriesAnswered()
-			return answer, nil
-		}
-	}
-
-	if err != nil {
-		ds.appState.Log.Warn("error resolving dns request", "error", err)
-		answer = models.NewServFailDnsResponse()
-	} else if answer == nil {
-		answer = models.NewNXDomainDnsResponse()
-	} else if answers, _ := answer.Answers(); len(answers) < 1 {
-		answer = models.NewNoErrorDnsResponse()
+		resolverConfig.Metrics.IncQueriesAnswered()
+		return answer, nil
 	}
 
 	return answer, err

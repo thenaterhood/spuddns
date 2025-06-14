@@ -179,7 +179,6 @@ func (cfg AppConfig) IsCacheable(query dns.Question, data *models.DnsResponse) b
 				}
 			}
 		}
-
 	}
 
 	return true
