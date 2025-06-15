@@ -3,7 +3,7 @@
 pkgname=spuddns-git
 _pkgname=spuddns
 _branch=main
-pkgver=7c6198b
+pkgver=fd55d45
 pkgrel=1
 epoch=
 pkgdesc="A caching DNS resolver"

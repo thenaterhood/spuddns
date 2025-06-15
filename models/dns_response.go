@@ -31,10 +31,11 @@ func (m MalformedRR) Error() string {
 }
 
 type DnsResponse struct {
-	msg       *dns.Msg // this can't be json marshalled
-	Expires   time.Time
-	FromCache bool
-	Resolver  string
+	msg                *dns.Msg // this can't be json marshalled
+	Expires            time.Time
+	FromCache          bool
+	Resolver           string
+	RecursionAvailable bool
 }
 
 func NewDnsResponseFromMsg(msg *dns.Msg) (*DnsResponse, error) {
@@ -98,6 +99,81 @@ func NewRefusedDnsResponse() *DnsResponse {
 	msg.Rcode = dns.RcodeRefused
 	return &DnsResponse{
 		msg: msg,
+	}
+}
+
+func NewNoErrorDnsResponse() *DnsResponse {
+	msg := new(dns.Msg)
+	msg.Rcode = dns.RcodeSuccess
+	return &DnsResponse{
+		msg: msg,
+	}
+}
+
+func (d *DnsResponse) InsertAnswer(answer DNSAnswer) error {
+	if d.msg == nil {
+		d.msg = new(dns.Msg)
+		d.msg.Rcode = dns.RcodeSuccess
+	}
+
+	rr, err := answer.ToRR()
+	if err != nil {
+		return err
+	}
+
+	answers := []dns.RR{rr}
+	answers = append(answers, d.msg.Answer...)
+
+	d.msg.Answer = answers
+
+	return nil
+}
+
+func (d *DnsResponse) ChangeNameFrom(original string, to string, ttl time.Duration) {
+	if d.msg == nil {
+		d.msg = new(dns.Msg)
+		d.msg.Rcode = dns.RcodeSuccess
+	}
+
+	cname := DNSAnswer{
+		Name: original,
+		Type: dns.TypeCNAME,
+		TTL:  ttl,
+		Data: to,
+	}
+
+	for _, rr := range d.msg.Answer {
+		answer, err := NewDnsAnswerFromRR(rr)
+		if err != nil {
+			continue
+		}
+
+		if answer.Type == cname.Type && answer.Data == cname.Data {
+			// Already exists, don't add it again
+			return
+		}
+	}
+
+	d.InsertAnswer(cname)
+}
+
+func (d *DnsResponse) ChangeName(name string) {
+	/**
+	 * Alters the name used in the answers. This is
+	 * intended to be used to convert a DNS answer from
+	 * an expanded name back to the original name.
+	 */
+	if d.msg != nil {
+		if len(d.msg.Answer) > 0 {
+			firstAnswer, err := NewDnsAnswerFromRR(d.msg.Answer[0])
+			if err != nil {
+				return
+			}
+
+			if firstAnswer.Name != name && firstAnswer.Type != dns.TypeCNAME {
+				d.ChangeNameFrom(name, firstAnswer.Name, firstAnswer.TTL)
+			}
+		}
 	}
 }
 
@@ -208,9 +284,25 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 	if d.msg == nil {
 		return nil
 	}
+
 	d.bumpAnswerTTLs()
 
+	query, err := NewDnsQueryFromMsg(msg)
+	if err == nil {
+		// TODO dont have this be a silent failure
+		// This is needed so that clients receive an
+		// answer for the host they requested rather
+		// than an expanded version with the search
+		// domain. Some handle the expanded version
+		// but many don't.
+		question := query.FirstQuestion()
+		if question != nil {
+			d.ChangeName(question.Name)
+		}
+	}
+
 	resp := new(dns.Msg)
+	resp.RecursionAvailable = cmp.Or(d.RecursionAvailable, d.Resolver != "")
 	resp.SetReply(msg)
 	resp.Rcode = d.msg.Rcode
 
@@ -219,6 +311,12 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 	}
 
 	return resp
+}
+
+func (d *DnsResponse) Copy() DnsResponse {
+	resp, _ := NewDnsResponseFromMsg(d.msg)
+
+	return *resp
 }
 
 // DNSAnswer represents a single DNS answer

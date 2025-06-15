@@ -67,7 +67,9 @@ func TestCacheSet(t *testing.T) {
 		t.Errorf("failed to get cache again")
 	}
 
-	cachedValue, err := cache.GetDnsResponse(question)
+	dnsQuery, _ := models.NewDnsQueryFromQuestions([]dns.Question{question})
+
+	cachedValue, err := cache.QueryDns(*dnsQuery)
 	if err != nil {
 		t.Errorf("cache retrieve error: %s", err)
 	}
@@ -115,7 +117,9 @@ func TestCacheExpires(t *testing.T) {
 		t.Errorf("failed to get cache again")
 	}
 
-	cachedValue, err := cache.GetDnsResponse(question)
+	dnsQuery, _ := models.NewDnsQueryFromQuestions([]dns.Question{question})
+
+	cachedValue, err := cache.QueryDns(*dnsQuery)
 	if err != nil {
 		t.Errorf("cache retrieve error: %s", err)
 	}
@@ -163,7 +167,9 @@ func TestCacheNotKept(t *testing.T) {
 		t.Errorf("failed to get cache again")
 	}
 
-	cachedValue, err := cache.GetDnsResponse(question)
+	dnsQuery, _ := models.NewDnsQueryFromQuestions([]dns.Question{question})
+
+	cachedValue, err := cache.QueryDns(*dnsQuery)
 	if err != nil {
 		t.Errorf("cache retrieve error: %s", err)
 	}
@@ -212,7 +218,9 @@ func TestCacheDoesNotReturnMangledEntry(t *testing.T) {
 		t.Errorf("failed to get cache again")
 	}
 
-	cachedValue, err := cache.GetDnsResponse(question)
+	dnsQuery, _ := models.NewDnsQueryFromQuestions([]dns.Question{question})
+
+	cachedValue, err := cache.QueryDns(*dnsQuery)
 	if err == nil {
 		t.Errorf("cache retrieve should have failed")
 	}
@@ -245,9 +253,11 @@ func TestCacheEmptyDnsResponseDoesNotCrash(t *testing.T) {
 		t.Errorf("cache set errored: %s", err)
 	}
 
-	cachedValue, err := cache.GetDnsResponse(question)
+	dnsQuery, _ := models.NewDnsQueryFromQuestions([]dns.Question{question})
+
+	cachedValue, err := cache.QueryDns(*dnsQuery)
 	if err != nil {
-		t.Errorf("cache retrieve should not have failed")
+		t.Errorf("cache retrieve error: %s", err)
 	}
 
 	if cachedValue != nil {

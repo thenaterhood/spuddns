@@ -163,17 +163,19 @@ func (cfg AppConfig) IsCacheable(query dns.Question, data *models.DnsResponse) b
 		}
 
 		// Network (in response)
-		answerNet := strToIpNet(item.Data)
-		if answerNet == nil {
-			return false
-		}
+		if item.Type == dns.TypeA || item.Type == dns.TypeAAAA {
+			answerNet := strToIpNet(item.Data)
+			if answerNet == nil {
+				return false
+			}
 
-		dns_ip := answerNet.IP
+			dns_ip := answerNet.IP
 
-		if dns_ip != nil {
-			for _, skip_net := range cfg.skip_cache_nets {
-				if skip_net.Contains(dns_ip) {
-					return false
+			if dns_ip != nil {
+				for _, skip_net := range cfg.skip_cache_nets {
+					if skip_net.Contains(dns_ip) {
+						return false
+					}
 				}
 			}
 		}
@@ -190,8 +192,20 @@ func (cfg AppConfig) GetFullyQualifiedNames(name string) []string {
 	return cfg.ResolvConf.GetFullyQualifiedNames(name)
 }
 
-func (cfg AppConfig) GetUpstreamResolvers(name string) []string {
+func (cfg AppConfig) GetUpstreamResolvers(name string, clientId *string, clientIp *string) []string {
 	upstreamResolvers := []string{}
+	accessControl, err := cfg.GetACItem(clientId, clientIp)
+
+	if err != nil {
+		return []string{}
+	}
+
+	if accessControl != nil {
+		if len(accessControl.UpstreamResolvers) > 0 {
+			return accessControl.UpstreamResolvers
+		}
+	}
+
 	if len(cfg.ConditionalForwards) > 0 {
 		subs := strings.Split(name, ".")
 		slices.Reverse(subs)

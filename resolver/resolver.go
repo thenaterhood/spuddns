@@ -11,20 +11,18 @@ import (
 )
 
 type DnsResolverConfig struct {
-	Servers         []string
-	Logger          *slog.Logger
-	Timeout         int
-	Metrics         metrics.MetricsInterface
-	Static          map[string]string
-	ForceMimimumTtl int
-}
-
-type DnsResolver interface {
-	QueryDns(q models.DnsQuery) (*models.DnsResponse, error)
+	Servers          []string
+	Logger           *slog.Logger
+	Timeout          int
+	Metrics          metrics.MetricsInterface
+	Static           map[string]string
+	ForceMimimumTtl  int
+	Cache            models.DnsQueryClient
+	DefaultForwarder models.DnsQueryClient
 }
 
 type multiClient struct {
-	clients []DnsResolver
+	clients []models.DnsQueryClient
 	config  DnsResolverConfig
 }
 
@@ -50,15 +48,15 @@ func (mc *multiClient) QueryDns(query models.DnsQuery) (*models.DnsResponse, err
 	return models.NewNXDomainDnsResponse(), nil
 }
 
-func GetDnsResolver(clientConfig DnsResolverConfig, dnsCache models.DnsQueryClient) DnsResolver {
+func GetDnsResolver(clientConfig DnsResolverConfig) models.DnsQueryClient {
 	staticDnsClient := staticClient{clientConfig}
 
-	clients := []DnsResolver{
+	clients := []models.DnsQueryClient{
 		staticDnsClient,
 	}
 
-	if dnsCache != nil {
-		clients = append(clients, dnsCache)
+	if clientConfig.Cache != nil {
+		clients = append(clients, clientConfig.Cache)
 	}
 
 	for _, resolver := range clientConfig.Servers {
@@ -75,6 +73,10 @@ func GetDnsResolver(clientConfig DnsResolverConfig, dnsCache models.DnsQueryClie
 				config,
 			})
 		}
+	}
+
+	if clientConfig.DefaultForwarder != nil {
+		clients = append(clients, clientConfig.DefaultForwarder)
 	}
 
 	return &multiClient{

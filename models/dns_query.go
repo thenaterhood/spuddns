@@ -181,9 +181,23 @@ func (d *DnsQuery) SetCpeId(cpeId string) *DnsQuery {
 	return d
 }
 
+func (d DnsQuery) ResolveWithAsync(client DnsQueryClient, response chan *DnsResponse) {
+	go func() {
+		answer, err := d.ResolveWith(client)
+
+		if answer != nil && err == nil {
+			response <- answer
+			return
+		}
+
+		response <- nil
+	}()
+}
+
 func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 	answers := []DNSAnswer{}
 	fromCache := false
+	server := ""
 
 	switch d.msg.Opcode {
 	case dns.OpcodeQuery:
@@ -194,12 +208,12 @@ func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 				return NewServFailDnsResponse(), err
 			}
 
-			if answer == nil {
+			if !answer.IsSuccess() {
 				return nil, nil
 			}
 
-			if !answer.IsSuccess() {
-				return nil, nil
+			if answer == nil {
+				return NewNoErrorDnsResponse(), nil
 			}
 
 			decomposedAnswers, err := answer.Answers()
@@ -210,6 +224,7 @@ func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 			answers = append(answers, decomposedAnswers...)
 
 			fromCache = cmp.Or(fromCache, answer.FromCache)
+			server = cmp.Or(server, answer.Resolver)
 		}
 	default:
 		return NewServFailDnsResponse(), InvalidQuery{fmt.Sprintf("unsupported opcode '%d'", d.msg.Opcode)}
@@ -221,8 +236,51 @@ func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 	}
 
 	response.FromCache = fromCache
+	response.Resolver = server
 
 	return response, nil
+}
+
+func (d DnsQuery) NameExists(client DnsQueryClient) bool {
+	aChannel := make(chan *DnsResponse)
+	aaaaChannel := make(chan *DnsResponse)
+
+	aQuery, err := d.WithDifferentQuestion(dns.Question{
+		Name:   d.FirstQuestion().Name,
+		Qtype:  dns.TypeA,
+		Qclass: d.FirstQuestion().Qclass,
+	})
+
+	if err == nil && aQuery != nil {
+		aQuery.ResolveWithAsync(client, aChannel)
+	} else {
+		close(aChannel)
+	}
+
+	aaaaQuery, err := d.WithDifferentQuestion(dns.Question{
+		Name:   d.FirstQuestion().Name,
+		Qtype:  dns.TypeAAAA,
+		Qclass: d.FirstQuestion().Qclass,
+	})
+
+	if err == nil && aaaaQuery != nil {
+		aaaaQuery.ResolveWithAsync(client, aaaaChannel)
+	} else {
+		close(aaaaChannel)
+	}
+
+	aResult := <-aChannel
+	aaaResult := <-aaaaChannel
+
+	if aResult != nil && aResult.IsSuccess() {
+		return true
+	}
+
+	if aaaResult != nil && aaaResult.IsSuccess() {
+		return true
+	}
+
+	return false
 }
 
 // Clear extra RRs from the query message

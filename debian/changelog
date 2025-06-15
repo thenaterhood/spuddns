@@ -1,3 +1,14 @@
+spuddns (0.2.0-1) unstable; urgency=low
+
+  * Return NOERROR if no RR exists but an A or AAAA does
+  * Fix hostnames expanded with search domain - now returns a CNAME
+  * Fix search domain being appended twice if original lookup fails
+  * Fix recursion available flag
+  * Fix caching of responses other than A and AAAA
+  * Fix race condition with dropping privileges
+
+ -- Nate Levesque <public@thenaterhood.com>  Sun, 15 Jun 2025 00:05:51 -0400
+
 spuddns (0.1.0-1) unstable; urgency=low
 
   * Initial release.

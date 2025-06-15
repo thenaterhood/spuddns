@@ -19,7 +19,13 @@ func (c staticClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 	query := q.FirstQuestion()
 	c.clientConfig.Logger.Debug("attempting to resolve query with static record from config")
 
+	if c.clientConfig.Static == nil {
+		c.clientConfig.Logger.Debug("static entries are not configured")
+		return models.NewNXDomainDnsResponse(), nil
+	}
+
 	for _, name := range []string{query.Name[0 : len(query.Name)-1], query.Name} {
+
 		ip, ok := c.clientConfig.Static[name]
 		if ok {
 			ipAddr := net.ParseIP(ip)
@@ -30,6 +36,8 @@ func (c staticClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 			if ipAddr.To4() != nil {
 				dnsType = dns.TypeA
 			}
+
+			c.clientConfig.Logger.Debug("resolved from static", "qname", query.Name)
 
 			return models.NewDnsResponseFromDnsAnswers(
 				[]models.DNSAnswer{

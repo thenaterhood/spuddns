@@ -5,9 +5,33 @@ import (
 	"cmp"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/miekg/dns"
 )
+
+type FakeResolver struct {
+	records map[string]string
+}
+
+func (f *FakeResolver) QueryDns(query DnsQuery) (*DnsResponse, error) {
+	answer, ok := f.records[fmt.Sprintf("%s:%d", query.FirstQuestion().Name, query.FirstQuestion().Qtype)]
+
+	if !ok {
+		return NewNXDomainDnsResponse(), nil
+	}
+
+	return NewDnsResponseFromDnsAnswers(
+		[]DNSAnswer{
+			{
+				Name: query.FirstQuestion().Name,
+				Type: query.FirstQuestion().Qtype,
+				TTL:  30 * time.Second,
+				Data: answer,
+			},
+		},
+	)
+}
 
 func TestGetCpeId(t *testing.T) {
 
@@ -171,5 +195,99 @@ func TestNewQuery(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestNameExists_DoesNotExist(t *testing.T) {
+	question := dns.Question{
+		Name:   "example.com.",
+		Qtype:  dns.TypeA,
+		Qclass: 1,
+	}
+
+	query, err := NewDnsQueryFromQuestions([]dns.Question{question})
+	if err != nil {
+		t.Fatalf("unexpected error creating question: %v", err)
+	}
+
+	resolver := FakeResolver{
+		records: map[string]string{},
+	}
+
+	exists := query.NameExists(&resolver)
+	if exists {
+		t.Errorf("name was said to exist, but does not exist")
+	}
+}
+
+func TestNameExists_ExistsAAAA(t *testing.T) {
+	question := dns.Question{
+		Name:   "example.com.",
+		Qtype:  dns.TypeAAAA,
+		Qclass: 1,
+	}
+
+	query, err := NewDnsQueryFromQuestions([]dns.Question{question})
+	if err != nil {
+		t.Fatalf("unexpected error creating question: %v", err)
+	}
+
+	resolver := FakeResolver{
+		records: map[string]string{
+			fmt.Sprintf("example.com.:%d", dns.TypeAAAA): "::1",
+		},
+	}
+
+	exists := query.NameExists(&resolver)
+	if !exists {
+		t.Errorf("name was said to not exist, but does exist")
+	}
+}
+
+func TestNameExists_ExistsA(t *testing.T) {
+	question := dns.Question{
+		Name:   "example.com.",
+		Qtype:  dns.TypeAAAA,
+		Qclass: 1,
+	}
+
+	query, err := NewDnsQueryFromQuestions([]dns.Question{question})
+	if err != nil {
+		t.Fatalf("unexpected error creating question: %v", err)
+	}
+
+	resolver := FakeResolver{
+		records: map[string]string{
+			fmt.Sprintf("example.com.:%d", dns.TypeA): "127.0.0.1",
+		},
+	}
+
+	exists := query.NameExists(&resolver)
+	if !exists {
+		t.Errorf("name was said to not exist, but does exist")
+	}
+}
+
+func TestNameExists_ExistsA_and_AAAA(t *testing.T) {
+	question := dns.Question{
+		Name:   "example.com.",
+		Qtype:  dns.TypeAAAA,
+		Qclass: 1,
+	}
+
+	query, err := NewDnsQueryFromQuestions([]dns.Question{question})
+	if err != nil {
+		t.Fatalf("unexpected error creating question: %v", err)
+	}
+
+	resolver := FakeResolver{
+		records: map[string]string{
+			fmt.Sprintf("example.com.:%d", dns.TypeA):    "127.0.0.1",
+			fmt.Sprintf("example.com.:%d", dns.TypeAAAA): "::1",
+		},
+	}
+
+	exists := query.NameExists(&resolver)
+	if !exists {
+		t.Errorf("name was said to not exist, but does exist")
+	}
 }
