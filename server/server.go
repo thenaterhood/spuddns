@@ -29,6 +29,7 @@ type DnsServer struct {
 
 func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver.DnsResolverConfig) (*models.DnsResponse, error) {
 	question := query.FirstQuestionCopy()
+	hasUpstreams := false
 	var answer *models.DnsResponse
 	var err error
 
@@ -44,6 +45,9 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 		}
 
 		resolverConfig.Servers = ds.appConfig.GetUpstreamResolvers(alternateName, query.ClientId, query.ClientIp)
+		if len(resolverConfig.Servers) > 0 {
+			hasUpstreams = true
+		}
 
 		forwarder := resolver.GetDnsResolver(resolverConfig)
 		answer, err = modifiedQuery.ResolveWith(forwarder)
@@ -66,11 +70,17 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 		if exists {
 			answer := models.NewNoErrorDnsResponse()
 			answer.ChangeNameFrom(query.FirstQuestion().Name, alternateName, 5*time.Minute)
+			if len(resolverConfig.Servers) > 0 {
+				answer.Resolver = resolverConfig.Servers[0]
+			}
 			return answer, nil
 		}
 	}
 
-	return models.NewNXDomainDnsResponse(), nil
+	answer = models.NewNXDomainDnsResponse()
+	answer.RecursionAvailable = hasUpstreams
+
+	return answer, nil
 }
 
 func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse, error) {

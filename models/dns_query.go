@@ -197,6 +197,7 @@ func (d DnsQuery) ResolveWithAsync(client DnsQueryClient, response chan *DnsResp
 func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 	answers := []DNSAnswer{}
 	fromCache := false
+	server := ""
 
 	switch d.msg.Opcode {
 	case dns.OpcodeQuery:
@@ -223,6 +224,7 @@ func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 			answers = append(answers, decomposedAnswers...)
 
 			fromCache = cmp.Or(fromCache, answer.FromCache)
+			server = cmp.Or(server, answer.Resolver)
 		}
 	default:
 		return NewServFailDnsResponse(), InvalidQuery{fmt.Sprintf("unsupported opcode '%d'", d.msg.Opcode)}
@@ -234,6 +236,7 @@ func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 	}
 
 	response.FromCache = fromCache
+	response.Resolver = server
 
 	return response, nil
 }

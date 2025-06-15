@@ -31,10 +31,11 @@ func (m MalformedRR) Error() string {
 }
 
 type DnsResponse struct {
-	msg       *dns.Msg // this can't be json marshalled
-	Expires   time.Time
-	FromCache bool
-	Resolver  string
+	msg                *dns.Msg // this can't be json marshalled
+	Expires            time.Time
+	FromCache          bool
+	Resolver           string
+	RecursionAvailable bool
 }
 
 func NewDnsResponseFromMsg(msg *dns.Msg) (*DnsResponse, error) {
@@ -301,7 +302,7 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 	}
 
 	resp := new(dns.Msg)
-	resp.RecursionAvailable = true // TODO should get updated based on whether we have upstreams
+	resp.RecursionAvailable = cmp.Or(d.RecursionAvailable, d.Resolver != "")
 	resp.SetReply(msg)
 	resp.Rcode = d.msg.Rcode
 
