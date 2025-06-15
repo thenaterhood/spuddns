@@ -51,7 +51,7 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 		if answer != nil && answer.IsSuccess() {
 			if ds.appState.DnsPipeline != nil {
 				go func() {
-					*ds.appState.DnsPipeline <- models.DnsExchange{Question: *query.FirstQuestion(), Response: *answer}
+					*ds.appState.DnsPipeline <- models.DnsExchange{Question: *question, Response: *answer}
 				}()
 
 			}
