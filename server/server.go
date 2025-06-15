@@ -51,11 +51,15 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 		if answer != nil && answer.IsSuccess() {
 			if ds.appState.DnsPipeline != nil {
 				go func() {
-					*ds.appState.DnsPipeline <- models.DnsExchange{Question: *question, Response: *answer}
+					*ds.appState.DnsPipeline <- models.DnsExchange{Question: *query.FirstQuestionCopy(), Response: answer.Copy()}
 				}()
 
 			}
 			return answer, nil
+		}
+
+		if err != nil {
+			return models.NewServFailDnsResponse(), err
 		}
 
 		exists := modifiedQuery.NameExists(forwarder)
@@ -63,10 +67,6 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 			answer := models.NewNoErrorDnsResponse()
 			answer.ChangeNameFrom(query.FirstQuestion().Name, alternateName, 5*time.Minute)
 			return answer, nil
-		}
-
-		if err != nil {
-			return models.NewServFailDnsResponse(), err
 		}
 	}
 

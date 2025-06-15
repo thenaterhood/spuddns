@@ -300,6 +300,12 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 	return resp
 }
 
+func (d *DnsResponse) Copy() DnsResponse {
+	resp, _ := NewDnsResponseFromMsg(d.msg)
+
+	return *resp
+}
+
 // DNSAnswer represents a single DNS answer
 // A DNS response can *technically* contain multiple
 // answers but in practice this doesn't really work
