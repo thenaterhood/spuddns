@@ -141,6 +141,18 @@ func (d *DnsResponse) ChangeNameFrom(original string, to string, ttl time.Durati
 		Data: to,
 	}
 
+	for _, rr := range d.msg.Answer {
+		answer, err := NewDnsAnswerFromRR(rr)
+		if err != nil {
+			continue
+		}
+
+		if answer.Type == cname.Type && answer.Data == cname.Data {
+			// Already exists, don't add it again
+			return
+		}
+	}
+
 	d.InsertAnswer(cname)
 }
 
