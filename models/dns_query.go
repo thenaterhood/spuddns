@@ -242,34 +242,26 @@ func (d DnsQuery) NameExists(client DnsQueryClient) bool {
 	aChannel := make(chan *DnsResponse)
 	aaaaChannel := make(chan *DnsResponse)
 
-	if d.FirstQuestion().Qtype != dns.TypeA {
-		aQuery, err := d.WithDifferentQuestion(dns.Question{
-			Name:   d.FirstQuestion().Name,
-			Qtype:  dns.TypeA,
-			Qclass: d.FirstQuestion().Qclass,
-		})
+	aQuery, err := d.WithDifferentQuestion(dns.Question{
+		Name:   d.FirstQuestion().Name,
+		Qtype:  dns.TypeA,
+		Qclass: d.FirstQuestion().Qclass,
+	})
 
-		if err == nil && aQuery != nil {
-			aQuery.ResolveWithAsync(client, aChannel)
-		} else {
-			close(aChannel)
-		}
+	if err == nil && aQuery != nil {
+		aQuery.ResolveWithAsync(client, aChannel)
 	} else {
 		close(aChannel)
 	}
 
-	if d.FirstQuestion().Qtype != dns.TypeAAAA {
-		aaaaQuery, err := d.WithDifferentQuestion(dns.Question{
-			Name:   d.FirstQuestion().Name,
-			Qtype:  dns.TypeAAAA,
-			Qclass: d.FirstQuestion().Qclass,
-		})
+	aaaaQuery, err := d.WithDifferentQuestion(dns.Question{
+		Name:   d.FirstQuestion().Name,
+		Qtype:  dns.TypeAAAA,
+		Qclass: d.FirstQuestion().Qclass,
+	})
 
-		if err == nil && aaaaQuery != nil {
-			aaaaQuery.ResolveWithAsync(client, aaaaChannel)
-		} else {
-			close(aaaaChannel)
-		}
+	if err == nil && aaaaQuery != nil {
+		aaaaQuery.ResolveWithAsync(client, aaaaChannel)
 	} else {
 		close(aaaaChannel)
 	}
