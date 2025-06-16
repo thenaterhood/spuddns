@@ -351,6 +351,8 @@ func NewDnsAnswerFromRR(answer dns.RR) (*DNSAnswer, error) {
 		dnsAnswer.Data = rr.Ns
 	case *dns.HTTPS:
 		dnsAnswer.Data = rr.Target
+	case *dns.PTR:
+		dnsAnswer.Data = rr.Ptr
 	default:
 		return nil, UnsupportedRR{answer.Header().Rrtype}
 	}
@@ -419,6 +421,12 @@ func (answer DNSAnswer) ToRR() (dns.RR, error) {
 		rr := new(dns.HTTPS)
 		rr.Hdr = hdr
 		rr.Target = answer.Data
+		return rr, nil
+
+	case dns.TypePTR:
+		rr := new(dns.PTR)
+		rr.Hdr = hdr
+		rr.Ptr = answer.Data
 		return rr, nil
 
 	default:
