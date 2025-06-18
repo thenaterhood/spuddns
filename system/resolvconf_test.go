@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -330,9 +332,13 @@ func TestReadResolvConf(t *testing.T) {
 		},
 	}
 
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.Level(slog.LevelDebug),
+	}))
+
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := newResolvConfFromReader(stringSliceToReader(test.resolvConfLines))
+			result, err := newResolvConfFromReader(stringSliceToReader(test.resolvConfLines), log)
 
 			if err != test.err {
 				t.Errorf("unexpected or incorrect error parsing resolvconf, actual = %v, expected = %v", err, test.err)
