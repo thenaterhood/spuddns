@@ -229,7 +229,7 @@ func (cfg AppConfig) GetUpstreamResolvers(name string, clientId *string, clientI
 	}
 
 	if cfg.ResolvConf != nil {
-		if cfg.ResolvConf.SearchDomainContains(name) && len(cfg.ResolvConf.Nameservers) > 0 {
+		if len(cfg.ResolvConf.Nameservers) > 0 {
 			return cfg.ResolvConf.Nameservers
 		}
 
