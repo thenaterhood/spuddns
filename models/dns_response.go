@@ -142,6 +142,10 @@ func (d *DnsResponse) ChangeNameFrom(original string, to string, ttl time.Durati
 		Data: to,
 	}
 
+	if original == to {
+		return
+	}
+
 	for _, rr := range d.msg.Answer {
 		answer, err := NewDnsAnswerFromRR(rr)
 		if err != nil {

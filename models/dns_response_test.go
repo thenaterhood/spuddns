@@ -208,6 +208,41 @@ func TestDoesNotAddDupeCNAMEForExpandedSearchDomain(t *testing.T) {
 	}
 }
 
+func TestDoesNotAddDupeCNAMEIfNamesMatch(t *testing.T) {
+	originalQuery := new(dns.Msg)
+	originalQuery.Question = []dns.Question{
+		{
+			Name:  "example.test.local.",
+			Qtype: 1,
+		},
+	}
+
+	expandedMsg := new(dns.Msg)
+	expandedMsg.Rcode = dns.RcodeSuccess
+	expandedMsgAnswer := DNSAnswer{
+		Name: "example.test.local.",
+		Type: dns.TypeA,
+		TTL:  30 * time.Second,
+		Data: "127.0.0.1",
+	}
+	rr, _ := expandedMsgAnswer.ToRR()
+	expandedMsg.Answer = append(expandedMsg.Answer, rr)
+	expectedResponseMsg := new(dns.Msg)
+	expandedMsg.Question = originalQuery.Question
+	expectedResponseMsg.Rcode = dns.RcodeSuccess
+
+	beforeCname, err := NewDnsResponseFromMsg(expandedMsg)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	responseMsg := beforeCname.AsReplyToMsg(originalQuery)
+
+	if slices.Equal(responseMsg.Answer, expectedResponseMsg.Answer) {
+		t.Errorf("message was modified but should not have been")
+	}
+}
+
 func TestGetTtlFromMsg(t *testing.T) {
 	validMsg := new(dns.Msg)
 	validMsg.Rcode = dns.RcodeSuccess
