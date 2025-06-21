@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"strings"
 
 	"github.com/miekg/dns"
 )
@@ -51,6 +52,16 @@ func NewDnsQueryFromBytes(msg []byte) (*DnsQuery, error) {
 	}
 
 	return NewDnsQueryFromMsg(dnsReq)
+}
+
+func (d *DnsQuery) IsMdns() bool {
+	for _, q := range d.msg.Question {
+		if strings.HasSuffix(q.Name, ".local.") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (d *DnsQuery) Equal(other *DnsQuery) bool {

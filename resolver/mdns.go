@@ -18,7 +18,7 @@ func (c mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 		return nil, nil
 	}
 
-	if !c.clientConfig.Mdns.QueryIsMdns(q) {
+	if !q.IsMdns() {
 		return nil, nil
 	}
 

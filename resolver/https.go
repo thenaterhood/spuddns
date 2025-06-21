@@ -17,7 +17,7 @@ type httpsClient struct {
 }
 
 func (c httpsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
-	if c.clientConfig.Mdns.QueryIsMdns(q) && !c.clientConfig.Mdns.Forward {
+	if q.IsMdns() && !c.clientConfig.Mdns.Forward {
 		return nil, nil
 	}
 

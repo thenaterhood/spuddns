@@ -1,11 +1,9 @@
 package resolver
 
 import (
-	"fmt"
 	"log/slog"
 	"net"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/thenaterhood/spuddns/metrics"
@@ -35,14 +33,6 @@ func NewDefaultMdnsConfig() *MdnsConfig {
 		Enable:  true,
 		Forward: false,
 	}
-}
-
-func (m *MdnsConfig) QueryIsMdns(q models.DnsQuery) bool {
-	qname := q.FirstQuestion().Name
-
-	fmt.Printf("%s - isMdns = %v\n", qname, strings.HasSuffix(qname, ".local."))
-
-	return strings.HasSuffix(qname, ".local.")
 }
 
 type multiClient struct {
