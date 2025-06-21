@@ -102,8 +102,9 @@ func (c *spudcache) CacheDnsResponse(question dns.Question, response models.DnsR
 
 			retrieveCount := 0
 			var cached cacheEntry
+			key := getDnsQuestionCacheKey(question)
 
-			raw_value, err := c.get(getDnsQuestionCacheKey(question))
+			raw_value, err := c.get(key)
 			if err == nil {
 				err = json.Unmarshal(raw_value, &cached)
 				if err == nil {
@@ -111,7 +112,10 @@ func (c *spudcache) CacheDnsResponse(question dns.Question, response models.DnsR
 				}
 			}
 
-			c.expireCallback(question, response, retrieveCount, c)
+			keep := c.expireCallback(question, response, retrieveCount, c)
+			if !keep {
+				c.remove(key)
+			}
 		}(question, response)
 	}
 

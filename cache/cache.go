@@ -10,7 +10,7 @@ import (
 	"github.com/thenaterhood/spuddns/models"
 )
 
-type ExpireCallbackFn func(question dns.Question, response models.DnsResponse, retrieveCount int, cache Cache)
+type ExpireCallbackFn func(question dns.Question, response models.DnsResponse, retrieveCount int, cache Cache) bool
 
 type CacheConfig struct {
 	Enable  bool
