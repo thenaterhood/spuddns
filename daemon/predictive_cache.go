@@ -23,12 +23,12 @@ func NewCacheMinder(config *app.AppConfig, state app.AppState) *CacheMinder {
 	}
 }
 
-func (minder CacheMinder) RefreshExpiringCacheItem(q dns.Question, expiring models.DnsResponse, retrieveCount int, c cache.Cache) {
+func (minder CacheMinder) RefreshExpiringCacheItem(q dns.Question, expiring models.DnsResponse, retrieveCount int, c cache.Cache) bool {
 
 	minder.appState.Log.Debug("cache entry expiring", "query", q.Name, "qtype", q.Qtype, "retrievalCount", retrieveCount)
 
 	if retrieveCount < minder.appConfig.PredictiveThreshold {
-		return
+		return false
 	}
 
 	minder.appState.Log.Debug("refreshing frequent cache item", "query", q.Name, "qtype", q.Qtype)
@@ -36,7 +36,7 @@ func (minder CacheMinder) RefreshExpiringCacheItem(q dns.Question, expiring mode
 	query, err := models.NewDnsQueryFromQuestions([]dns.Question{q})
 	if err != nil {
 		minder.appState.Log.Warn("invalid dns query", "err", err)
-		return
+		return false
 	}
 
 	servers := []string{}
@@ -85,7 +85,10 @@ func (minder CacheMinder) RefreshExpiringCacheItem(q dns.Question, expiring mode
 			minder.appState.Log.Debug("re-caching common query", "query", q.Name, "ttl", response.GetTtl())
 			*minder.appState.DnsPipeline <- models.DnsExchange{Question: q, Response: *response}
 		}
+		return true
 	} else {
 		minder.appState.Log.Warn("got nil dns response", "query", q.Name)
 	}
+
+	return false
 }

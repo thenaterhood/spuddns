@@ -19,6 +19,20 @@ type DnsResolverConfig struct {
 	ForceMimimumTtl  int
 	Cache            models.DnsQueryClient
 	DefaultForwarder models.DnsQueryClient
+	Mdns             *MdnsConfig
+}
+
+type MdnsConfig struct {
+	Enable  bool
+	Forward bool
+	Search  []string
+}
+
+func NewDefaultMdnsConfig() *MdnsConfig {
+	return &MdnsConfig{
+		Enable:  true,
+		Forward: false,
+	}
 }
 
 type multiClient struct {
@@ -49,6 +63,14 @@ func (mc *multiClient) QueryDns(query models.DnsQuery) (*models.DnsResponse, err
 }
 
 func GetDnsResolver(clientConfig DnsResolverConfig) models.DnsQueryClient {
+	if clientConfig.Timeout == 0 {
+		clientConfig.Timeout = 2
+	}
+
+	if clientConfig.Mdns == nil {
+		clientConfig.Mdns = NewDefaultMdnsConfig()
+	}
+
 	staticDnsClient := staticClient{clientConfig}
 
 	clients := []models.DnsQueryClient{
@@ -57,6 +79,10 @@ func GetDnsResolver(clientConfig DnsResolverConfig) models.DnsQueryClient {
 
 	if clientConfig.Cache != nil {
 		clients = append(clients, clientConfig.Cache)
+	}
+
+	if clientConfig.Mdns.Enable {
+		clients = append(clients, mdnsClient{clientConfig})
 	}
 
 	for _, resolver := range clientConfig.Servers {

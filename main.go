@@ -75,10 +75,12 @@ func main() {
 	}
 
 	if config.RespectResolveConf {
-		resolvconf, err := system.NewResolvConfFromPath(config.ResolvConfPath)
+		resolvconf, err := system.NewResolvConfFromPath(config.ResolvConfPath, state.Log)
 		if err != nil {
-			state.Log.Warn("failed to read resolvconf", "error", err)
-		} else {
+			state.Log.Warn("failed to read resolvconf on start - will retry", "error", err)
+		}
+
+		if resolvconf != nil {
 			config.ResolvConf = resolvconf
 			resolvconf.Watch()
 		}

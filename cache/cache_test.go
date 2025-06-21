@@ -22,7 +22,7 @@ func getCacheConfig() CacheConfig {
 }
 
 func TestGetCache(t *testing.T) {
-	cache, _ := getInMemoryCache(false, getCacheConfig())
+	cache, _ := getSpudcache(false, getCacheConfig())
 
 	if cache == nil {
 		t.Errorf("cache was unexpectedly nil")
@@ -30,7 +30,7 @@ func TestGetCache(t *testing.T) {
 }
 
 func TestCacheSet(t *testing.T) {
-	cache, _ := getInMemoryCache(false, getCacheConfig())
+	cache, _ := getSpudcache(false, getCacheConfig())
 
 	if cache == nil {
 		t.Errorf("cache was unexpectedly nil")
@@ -61,7 +61,7 @@ func TestCacheSet(t *testing.T) {
 		t.Errorf("cache set errored: %s", err)
 	}
 
-	cache, _ = getInMemoryCache(true, getCacheConfig())
+	cache, _ = getSpudcache(true, getCacheConfig())
 
 	if cache == nil {
 		t.Errorf("failed to get cache again")
@@ -80,7 +80,7 @@ func TestCacheSet(t *testing.T) {
 }
 
 func TestCacheExpires(t *testing.T) {
-	cache, _ := getInMemoryCache(false, getCacheConfig())
+	cache, _ := getSpudcache(false, getCacheConfig())
 
 	if cache == nil {
 		t.Errorf("cache was unexpectedly nil")
@@ -111,7 +111,7 @@ func TestCacheExpires(t *testing.T) {
 		t.Errorf("cache set errored: %s", err)
 	}
 
-	cache, _ = getInMemoryCache(true, getCacheConfig())
+	cache, _ = getSpudcache(true, getCacheConfig())
 
 	if cache == nil {
 		t.Errorf("failed to get cache again")
@@ -130,7 +130,7 @@ func TestCacheExpires(t *testing.T) {
 }
 
 func TestCacheNotKept(t *testing.T) {
-	cache, _ := getInMemoryCache(false, getCacheConfig())
+	cache, _ := getSpudcache(false, getCacheConfig())
 
 	if cache == nil {
 		t.Errorf("cache was unexpectedly nil")
@@ -161,7 +161,7 @@ func TestCacheNotKept(t *testing.T) {
 		t.Errorf("cache set errored: %s", err)
 	}
 
-	cache, _ = getInMemoryCache(false, getCacheConfig())
+	cache, _ = getSpudcache(false, getCacheConfig())
 
 	if cache == nil {
 		t.Errorf("failed to get cache again")
@@ -180,7 +180,7 @@ func TestCacheNotKept(t *testing.T) {
 }
 
 func TestCacheDoesNotReturnMangledEntry(t *testing.T) {
-	cache, _ := getInMemoryCache(false, getCacheConfig())
+	cache, _ := getSpudcache(false, getCacheConfig())
 
 	if cache == nil {
 		t.Errorf("cache was unexpectedly nil")
@@ -211,8 +211,8 @@ func TestCacheDoesNotReturnMangledEntry(t *testing.T) {
 		t.Errorf("cache set errored: %s", err)
 	}
 
-	raw_cache := activeCache.cache
-	raw_cache.Set(getDnsQuestionCacheKey(question), []byte("asdf"))
+	raw_cache := activeSpudCache
+	raw_cache.set(getDnsQuestionCacheKey(question), []byte("asdf"))
 
 	if cache == nil {
 		t.Errorf("failed to get cache again")
@@ -231,7 +231,7 @@ func TestCacheDoesNotReturnMangledEntry(t *testing.T) {
 }
 
 func TestCacheEmptyDnsResponseDoesNotCrash(t *testing.T) {
-	cache, _ := getInMemoryCache(false, getCacheConfig())
+	cache, _ := getSpudcache(false, getCacheConfig())
 
 	if cache == nil {
 		t.Errorf("cache was unexpectedly nil")

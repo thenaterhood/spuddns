@@ -48,9 +48,13 @@ type AppConfig struct {
 	ForwardCpeId bool `json:"forward_cpe_id"`
 	// Domains and networks (IPs and CIDR) that should not be
 	// cached, if caching is enabled
-	DoNotCache      []string `json:"do_not_cache"`
-	LogLevel        int      `json:"log_level"`
-	ForceMinimumTtl int      `json:"force_minimum_ttl"`
+	DoNotCache []string `json:"do_not_cache"`
+	LogLevel   int      `json:"log_level"`
+	MdnsEnable bool     `json:"mdns_enable"`
+	// Whether to forward mDNS to an upstream server. Defaults
+	// to disabled.
+	MdnsForward     bool `json:"mdns_forward"`
+	ForceMinimumTtl int  `json:"force_minimum_ttl"`
 	// Attempt to maintain frequently used queries in
 	// the cache so clients always received a cached response
 	PredictiveCache bool `json:"predictive_cache"`
@@ -229,7 +233,7 @@ func (cfg AppConfig) GetUpstreamResolvers(name string, clientId *string, clientI
 	}
 
 	if cfg.ResolvConf != nil {
-		if cfg.ResolvConf.SearchDomainContains(name) && len(cfg.ResolvConf.Nameservers) > 0 {
+		if len(cfg.ResolvConf.Nameservers) > 0 {
 			return cfg.ResolvConf.Nameservers
 		}
 
@@ -285,6 +289,8 @@ func GetDefaultConfig() AppConfig {
 		DisableMetrics:      true,
 		ForceMinimumTtl:     -1,
 		LogLevel:            int(slog.LevelInfo),
+		MdnsEnable:          true,
+		MdnsForward:         false,
 		PredictiveCache:     true,
 		PredictiveThreshold: 10,
 		ResilientCache:      true,

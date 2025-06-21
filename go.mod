@@ -3,7 +3,6 @@ module github.com/thenaterhood/spuddns
 go 1.23
 
 require (
-	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/miekg/dns v1.1.62
 	github.com/prometheus/client_golang v1.20.5
 )
