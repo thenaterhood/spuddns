@@ -1,25 +1,76 @@
 package cache
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/allegro/bigcache/v3"
 	"github.com/miekg/dns"
 	"github.com/thenaterhood/spuddns/models"
 )
 
-var activeCache *inMemoryCache
+var activeSpudCache *spudcache
 
-type inMemoryCache struct {
-	cache          *bigcache.BigCache
+type spudcache struct {
+	cache          map[string][]byte
 	expireCallback ExpireCallbackFn
 	config         CacheConfig
+	cacheMutex     sync.RWMutex
 }
 
-func (c *inMemoryCache) CacheDnsResponse(question dns.Question, response models.DnsResponse) error {
+var ErrEntryNotFound = errors.New("entry not found")
+
+func getSpudcache(keep bool, config CacheConfig) (Cache, error) {
+
+	if keep && activeSpudCache != nil {
+		return activeSpudCache, nil
+	}
+
+	if activeSpudCache != nil {
+		activeSpudCache = nil
+	}
+
+	cache := spudcache{
+		cache:          map[string][]byte{},
+		expireCallback: nil,
+		config:         config,
+		cacheMutex:     sync.RWMutex{},
+	}
+
+	activeSpudCache = &cache
+	return activeSpudCache, nil
+}
+
+func (c *spudcache) set(key string, value []byte) error {
+	c.cacheMutex.Lock()
+	defer c.cacheMutex.Unlock()
+	c.cache[key] = value
+
+	return nil
+}
+
+func (c *spudcache) get(key string) ([]byte, error) {
+	c.cacheMutex.RLock()
+	defer c.cacheMutex.RUnlock()
+
+	val, ok := c.cache[key]
+	if !ok {
+		return nil, ErrEntryNotFound
+	}
+
+	return val, nil
+}
+
+func (c *spudcache) remove(key string) {
+	c.cacheMutex.Lock()
+	defer c.cacheMutex.Unlock()
+
+	delete(c.cache, key)
+}
+
+func (c *spudcache) CacheDnsResponse(question dns.Question, response models.DnsResponse) error {
 	key := getDnsQuestionCacheKey(question)
 
 	if response.IsEmpty() {
@@ -43,7 +94,7 @@ func (c *inMemoryCache) CacheDnsResponse(question dns.Question, response models.
 		return err
 	}
 
-	ret := c.cache.Set(key, value)
+	ret := c.set(key, value)
 
 	if c.expireCallback != nil {
 		go func(question dns.Question, response models.DnsResponse) {
@@ -52,7 +103,7 @@ func (c *inMemoryCache) CacheDnsResponse(question dns.Question, response models.
 			retrieveCount := 0
 			var cached cacheEntry
 
-			raw_value, err := c.cache.Get(getDnsQuestionCacheKey(question))
+			raw_value, err := c.get(getDnsQuestionCacheKey(question))
 			if err == nil {
 				err = json.Unmarshal(raw_value, &cached)
 				if err == nil {
@@ -67,15 +118,15 @@ func (c *inMemoryCache) CacheDnsResponse(question dns.Question, response models.
 	return ret
 }
 
-func (c *inMemoryCache) getDnsResponse(question dns.Question) (*models.DnsResponse, error) {
+func (c *spudcache) getDnsResponse(question dns.Question) (*models.DnsResponse, error) {
 	timer := c.config.Metrics.GetCacheReadTimer()
 	defer c.config.Metrics.ObserveTimer(timer)
 
 	key := getDnsQuestionCacheKey(question)
 
-	raw_value, err := c.cache.Get(key)
+	raw_value, err := c.get(key)
 
-	if err == bigcache.ErrEntryNotFound {
+	if err == ErrEntryNotFound {
 		return nil, nil
 	}
 
@@ -91,6 +142,7 @@ func (c *inMemoryCache) getDnsResponse(question dns.Question) (*models.DnsRespon
 	}
 
 	if value.Expires.Before(time.Now()) {
+		c.remove(key)
 		return nil, nil
 	}
 
@@ -111,13 +163,13 @@ func (c *inMemoryCache) getDnsResponse(question dns.Question) (*models.DnsRespon
 		if err != nil {
 			return
 		}
-		c.cache.Set(key, marshalled)
+		c.set(key, marshalled)
 	}()
 
 	return response, nil
 }
 
-func (c *inMemoryCache) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
+func (c *spudcache) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 	c.config.Logger.Debug("attempting to resolve from cache", "qname", q.FirstQuestion().Name)
 
 	if q.FirstQuestion() == nil {
@@ -126,27 +178,6 @@ func (c *inMemoryCache) QueryDns(q models.DnsQuery) (*models.DnsResponse, error)
 	return c.getDnsResponse(*q.FirstQuestion())
 }
 
-func (c *inMemoryCache) SetExpireCallback(cb ExpireCallbackFn) {
+func (c *spudcache) SetExpireCallback(cb ExpireCallbackFn) {
 	c.expireCallback = cb
-}
-
-func getInMemoryCache(keep bool, config CacheConfig) (Cache, error) {
-
-	if keep && activeCache != nil {
-		return activeCache, nil
-	}
-
-	if activeCache != nil {
-		activeCache.cache.Close()
-	}
-
-	cache, err := bigcache.New(context.Background(), bigcache.DefaultConfig(120*time.Minute))
-
-	if err != nil {
-		return nil, err
-	}
-
-	activeCache = &inMemoryCache{cache: cache, config: config}
-
-	return activeCache, nil
 }

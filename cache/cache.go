@@ -37,7 +37,7 @@ func getDnsQuestionCacheKey(question dns.Question) string {
 
 func GetCache(config CacheConfig) (Cache, error) {
 	if config.Enable {
-		cache, err := getInMemoryCache(false, config)
+		cache, err := getSpudcache(false, config)
 		if err != nil {
 			return &DummyCache{}, err
 		}
