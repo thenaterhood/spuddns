@@ -80,6 +80,7 @@ func (c mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 			if response != nil {
 				answers, err := response.Answers()
 				if err == nil && answers != nil {
+					response.Resolver = from.Network()
 					return response, nil
 				}
 			}
