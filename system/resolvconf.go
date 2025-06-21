@@ -99,7 +99,7 @@ func (r *ResolvConf) GetFullyQualifiedNames(name string) []string {
 	}
 
 	for _, search := range r.Search {
-		if strings.HasSuffix(name, search) {
+		if strings.HasSuffix(name, makeQualified(search)) {
 			continue
 		}
 		names = append(names, makeQualified(name+search))
