@@ -20,6 +20,7 @@
     "predictive_cache": true,
     "resilient_cache": true,
     "shared_secret": "",
+    "mdns_enable": true,
     "upstream_resolvers": [
         "1.1.1.1"
     ],

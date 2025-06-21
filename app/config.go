@@ -50,6 +50,7 @@ type AppConfig struct {
 	// cached, if caching is enabled
 	DoNotCache      []string `json:"do_not_cache"`
 	LogLevel        int      `json:"log_level"`
+	MdnsEnable      bool     `json:"mdns_enable"`
 	ForceMinimumTtl int      `json:"force_minimum_ttl"`
 	// Attempt to maintain frequently used queries in
 	// the cache so clients always received a cached response
@@ -285,6 +286,7 @@ func GetDefaultConfig() AppConfig {
 		DisableMetrics:      true,
 		ForceMinimumTtl:     -1,
 		LogLevel:            int(slog.LevelInfo),
+		MdnsEnable:          true,
 		PredictiveCache:     true,
 		PredictiveThreshold: 10,
 		ResilientCache:      true,

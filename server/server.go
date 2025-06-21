@@ -124,6 +124,9 @@ func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse,
 		ForceMimimumTtl:  ds.appConfig.ForceMinimumTtl,
 		Cache:            appCache,
 		DefaultForwarder: ds.appState.DefaultForwarder,
+		Mdns: &resolver.MdnsConfig{
+			Enable: ds.appConfig.MdnsEnable,
+		},
 	}
 
 	answer, err = ds.resolveQuery(query, resolverConfig)
