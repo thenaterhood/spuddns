@@ -13,6 +13,9 @@ type miekgDnsClient struct {
 }
 
 func (mdc miekgDnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
+	if mdc.clientConfig.Mdns.QueryIsMdns(q) && !mdc.clientConfig.Mdns.Forward {
+		return nil, nil
+	}
 	mdc.clientConfig.Logger.Debug("attempting to resolve query with standard dns")
 	timer := mdc.clientConfig.Metrics.GetForwardTimer()
 	defer mdc.clientConfig.Metrics.ObserveTimer(timer)

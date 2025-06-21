@@ -3,7 +3,6 @@ package resolver
 import (
 	"context"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/miekg/dns"
@@ -19,7 +18,7 @@ func (c mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 		return nil, nil
 	}
 
-	if !strings.HasSuffix(q.FirstQuestion().Name, ".local.") {
+	if !c.clientConfig.Mdns.QueryIsMdns(q) {
 		return nil, nil
 	}
 
