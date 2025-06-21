@@ -14,10 +14,6 @@ type mdnsClient struct {
 }
 
 func (c mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
-	if !c.clientConfig.Mdns.Enable {
-		return nil, nil
-	}
-
 	if !q.IsMdns() {
 		return nil, nil
 	}

@@ -81,7 +81,9 @@ func GetDnsResolver(clientConfig DnsResolverConfig) models.DnsQueryClient {
 		clients = append(clients, clientConfig.Cache)
 	}
 
-	clients = append(clients, mdnsClient{clientConfig})
+	if clientConfig.Mdns.Enable {
+		clients = append(clients, mdnsClient{clientConfig})
+	}
 
 	for _, resolver := range clientConfig.Servers {
 		config := clientConfig
