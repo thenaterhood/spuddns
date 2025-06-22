@@ -163,18 +163,6 @@ func newResolvConfFromReader(reader io.Reader, log *slog.Logger) (*ResolvConf, e
 	return &resolvConf, nil
 }
 
-func makeQualified(name string) string {
-	if len(name) < 1 {
-		return "."
-	}
-
-	if name[len(name)-1] != '.' {
-		return name + "."
-	}
-
-	return name
-}
-
 func NewResolvConfFromPath(path string, log *slog.Logger) (*ResolvConf, error) {
 	resolvConf := &ResolvConf{
 		Options: map[string]string{},

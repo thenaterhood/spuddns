@@ -67,14 +67,14 @@ func GetDnsResolver(clientConfig DnsResolverConfig) models.DnsQueryClient {
 		clientConfig.Timeout = 2
 	}
 
-	if clientConfig.Mdns == nil {
-		clientConfig.Mdns = NewDefaultMdnsConfig()
-	}
-
 	staticDnsClient := staticClient{clientConfig}
 
 	clients := []models.DnsQueryClient{
 		staticDnsClient,
+	}
+
+	if clientConfig.Mdns == nil {
+		clientConfig.Mdns = NewDefaultMdnsConfig()
 	}
 
 	if clientConfig.Cache != nil {

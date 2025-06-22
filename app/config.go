@@ -79,6 +79,7 @@ type AppConfig struct {
 	skip_cache_nets  []net.IPNet        `json:"-"`
 	skip_cache_regex *regexp.Regexp     `json:"-"`
 	ResolvConf       *system.ResolvConf `json:"-"`
+	EtcHosts         *system.EtcHosts   `json:"-"`
 }
 
 // Access control list item

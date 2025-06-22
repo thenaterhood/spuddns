@@ -33,6 +33,13 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 	var answer *models.DnsResponse
 	var err error
 
+	if ds.appConfig.EtcHosts != nil {
+		answer, err = query.ResolveWith(ds.appConfig.EtcHosts)
+		if answer != nil && err == nil {
+			return answer, nil
+		}
+	}
+
 	names := ds.appConfig.GetFullyQualifiedNames(question.Name)
 
 	for _, alternateName := range names {
