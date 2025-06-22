@@ -159,9 +159,8 @@ func (c *spudcache) getDnsResponse(question dns.Question) (*models.DnsResponse, 
 	response.Expires = value.Expires
 	response.Resolver = value.Resolver
 
-	value.RequestCount += 1
-
 	go func() {
+		value.RequestCount += 1
 		marshalled, err := json.Marshal(value)
 
 		if err != nil {

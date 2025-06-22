@@ -319,6 +319,9 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 
 func (d *DnsResponse) Copy() DnsResponse {
 	resp, _ := NewDnsResponseFromMsg(d.msg)
+	resp.FromCache = d.FromCache
+	resp.Expires = d.Expires
+	resp.Resolver = d.Resolver
 
 	return *resp
 }

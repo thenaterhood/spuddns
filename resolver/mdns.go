@@ -27,7 +27,7 @@ func (c mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 	}
 	defer conn.Close()
 
-	timeout := time.Duration(c.clientConfig.Timeout) * time.Second
+	timeout := time.Duration(c.clientConfig.Timeout/2) * time.Second
 
 	query := q.PreparedMsg()
 	packed, err := query.Pack()
