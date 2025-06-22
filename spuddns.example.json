@@ -19,6 +19,7 @@
     "log_level": -4,
     "predictive_cache": true,
     "resilient_cache": true,
+    "persistent_cache_file": "",
     "shared_secret": "",
     "mdns_enable": true,
     "upstream_resolvers": [
