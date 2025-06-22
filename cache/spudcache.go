@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -68,6 +69,30 @@ func (c *spudcache) remove(key string) {
 	defer c.cacheMutex.Unlock()
 
 	delete(c.cache, key)
+}
+
+func (c *spudcache) Persist(path string) error {
+	c.cacheMutex.RLock()
+	defer c.cacheMutex.RUnlock()
+
+	data, err := json.Marshal(c.cache)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, data, 0644)
+}
+
+func (c *spudcache) Load(path string) error {
+	c.cacheMutex.Lock()
+	defer c.cacheMutex.Unlock()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(data, &c.cache)
 }
 
 func (c *spudcache) CacheDnsResponse(question dns.Question, response models.DnsResponse) error {

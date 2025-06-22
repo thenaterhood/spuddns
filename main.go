@@ -86,6 +86,15 @@ func main() {
 		}
 	}
 
+	if config.PersistentCacheFile != "" {
+		persistentCache := daemon.NewPersistentCache(*config, &state)
+		if err := persistentCache.Start(); err != nil {
+			state.Log.Warn("failed to start persistent cache", "error", err)
+		} else {
+			defer persistentCache.Stop()
+		}
+	}
+
 	metricsErr := state.Metrics.Start()
 	if metricsErr != nil {
 		state.Log.Warn("failed to start metrics", "err", metricsErr)

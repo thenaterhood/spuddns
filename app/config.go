@@ -66,7 +66,11 @@ type AppConfig struct {
 	// resolver fails to resolve them so an outage of upstream
 	// DNS doesn't cause a full network failure. Enabling this
 	// also enables PredictiveCache.
-	ResilientCache      bool                `json:"resilient_cache"`
+	ResilientCache bool `json:"resilient_cache"`
+	// If not empty, spuddns will periodically flush its cache to
+	// this path and will load it at start to persist the cache between
+	// restarts.
+	PersistentCacheFile string              `json:"persistent_cache_file"`
 	UpstreamResolvers   []string            `json:"upstream_resolvers"`
 	ConditionalForwards map[string][]string `json:"conditional_forwards"`
 	RespectResolveConf  bool                `json:"respect_resolvconf"`
@@ -293,6 +297,7 @@ func GetDefaultConfig() AppConfig {
 		MdnsForward:         false,
 		PredictiveCache:     true,
 		PredictiveThreshold: 10,
+		PersistentCacheFile: "",
 		ResilientCache:      true,
 		UpstreamResolvers:   []string{},
 		ConditionalForwards: map[string][]string{},

@@ -22,6 +22,8 @@ type Cache interface {
 	CacheDnsResponse(dns.Question, models.DnsResponse) error
 	SetExpireCallback(cb ExpireCallbackFn)
 	QueryDns(models.DnsQuery) (*models.DnsResponse, error)
+	Persist(string) error
+	Load(string) error
 }
 
 type cacheEntry struct {
