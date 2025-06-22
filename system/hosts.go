@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/miekg/dns"
 	"github.com/thenaterhood/spuddns/models"
@@ -58,7 +57,7 @@ func (hosts *EtcHosts) QueryDns(query models.DnsQuery) (*models.DnsResponse, err
 				{
 					Name: qname,
 					Type: qtype,
-					TTL:  30 * time.Second,
+					TTL:  0,
 					Data: addr,
 				},
 			},
@@ -74,7 +73,7 @@ func (hosts *EtcHosts) QueryDns(query models.DnsQuery) (*models.DnsResponse, err
 				{
 					Name: qname,
 					Type: qtype,
-					TTL:  30 * time.Second,
+					TTL:  0,
 					Data: addr,
 				},
 			},
