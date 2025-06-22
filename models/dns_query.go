@@ -219,12 +219,12 @@ func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 				return NewServFailDnsResponse(), err
 			}
 
-			if !answer.IsSuccess() {
-				return nil, nil
-			}
-
 			if answer == nil {
 				return NewNoErrorDnsResponse(), nil
+			}
+
+			if !answer.IsSuccess() {
+				return nil, nil
 			}
 
 			decomposedAnswers, err := answer.Answers()
