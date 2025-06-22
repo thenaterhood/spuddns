@@ -86,6 +86,8 @@ func main() {
 		}
 	}
 
+	config.EtcHosts = system.NewEtcHosts(state.Log)
+
 	if config.PersistentCacheFile != "" {
 		persistentCache := daemon.NewPersistentCache(*config, &state)
 		if err := persistentCache.Start(); err != nil {
