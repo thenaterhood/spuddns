@@ -8,12 +8,15 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"slices"
+	"strconv"
+
 	"strings"
 
-	"slices"
-
 	"github.com/miekg/dns"
+	"github.com/thenaterhood/spuddns/cache"
 	"github.com/thenaterhood/spuddns/models"
+	"github.com/thenaterhood/spuddns/resolver"
 	"github.com/thenaterhood/spuddns/system"
 )
 
@@ -201,6 +204,34 @@ func (cfg AppConfig) GetFullyQualifiedNames(name string) []string {
 	return cfg.ResolvConf.GetFullyQualifiedNames(name)
 }
 
+func (cfg AppConfig) GetResolverConfig(appState *AppState, qname string, clientId *string, clientIp *string) (*resolver.DnsResolverConfig, error) {
+	appCache := appState.Cache
+
+	accessControl, err := cfg.GetACItem(clientId, clientIp)
+	if err != nil {
+		return nil, err
+	}
+
+	if accessControl != nil && !accessControl.UseSharedCache {
+		appCache = &cache.DummyCache{}
+	}
+	resolverConfig := resolver.DnsResolverConfig{
+		Servers:          []string{},
+		Metrics:          appState.Metrics,
+		Logger:           appState.Log,
+		ForceMimimumTtl:  cfg.ForceMinimumTtl,
+		Cache:            appCache,
+		DefaultForwarder: appState.DefaultForwarder,
+		Mdns: &resolver.MdnsConfig{
+			Enable: cfg.MdnsEnable,
+		},
+	}
+
+	resolverConfig.Servers = cfg.GetUpstreamResolvers(qname, clientId, clientIp)
+
+	return &resolverConfig, nil
+}
+
 func (cfg AppConfig) GetUpstreamResolvers(name string, clientId *string, clientIp *string) []string {
 	upstreamResolvers := []string{}
 	accessControl, err := cfg.GetACItem(clientId, clientIp)
@@ -308,6 +339,62 @@ func GetDefaultConfig() AppConfig {
 	}
 }
 
+func getEnvBool(name string) bool {
+	data := os.Getenv(name)
+	return data == "1" || strings.ToLower(data) == "true" || strings.ToLower(data) == "yes"
+}
+
+func getEnvList(name string) []string {
+	data := os.Getenv(name)
+	return strings.Fields(data)
+}
+
+func getEnvInt(name string) (int, error) {
+	data := os.Getenv(name)
+	return strconv.Atoi(data)
+}
+
+func getEnvMapList(name string) map[string][]string {
+	data := os.Getenv(name)
+	ret := map[string][]string{}
+
+	list := strings.Fields(data)
+	for _, item := range list {
+		split := strings.SplitN(item, ":", 2)
+		if len(split) != 2 {
+			continue
+		}
+
+		ret[split[0]] = []string{split[1]}
+	}
+
+	return ret
+}
+
+func getEnvironmentConfig() AppConfig {
+	config := GetDefaultConfig()
+
+	port, err := getEnvInt("DNS_SERVER_PORT")
+	if err == nil {
+		config.DnsServerPort = port
+	}
+
+	config.DnsOverHttpEnable = getEnvBool("DNS_OVER_HTTP_ENABLE")
+	config.MdnsEnable = getEnvBool("MDNS_ENABLE")
+	config.RespectResolveConf = false // assuming docker
+	config.UpstreamResolvers = getEnvList("UPSTREAM_RESOLVERS")
+	config.ConditionalForwards = getEnvMapList("CONDITIONAL_FORWARDS")
+	config.DisableMetrics = getEnvBool("DISABLE_METRICS")
+
+	config.ResolvConf = &system.ResolvConf{
+		Search:      getEnvList("SEARCH_DOMAINS"),
+		Nameservers: config.UpstreamResolvers,
+		Options:     map[string]string{},
+	}
+
+	return config
+}
+
 func GetConfig(path string) (*AppConfig, error) {
 
 	if loadedConfig != nil {
@@ -318,6 +405,7 @@ func GetConfig(path string) (*AppConfig, error) {
 
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
+		config = getEnvironmentConfig()
 		loadedConfig = &config
 		return &config, nil
 	}
