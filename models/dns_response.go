@@ -39,8 +39,11 @@ type DnsResponse struct {
 }
 
 func NewDnsResponseFromMsg(msg *dns.Msg) (*DnsResponse, error) {
+	if msg == nil {
+		msg = new(dns.Msg)
+	}
 	response := DnsResponse{
-		msg: cmp.Or(msg, new(dns.Msg)),
+		msg: msg.Copy(),
 	}
 
 	if _, err := response.msg.Pack(); err != nil {
@@ -289,7 +292,8 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 		return nil
 	}
 
-	d.bumpAnswerTTLs()
+	reply := d.Copy()
+	reply.bumpAnswerTTLs()
 
 	query, err := NewDnsQueryFromMsg(msg)
 	if err == nil {
@@ -301,17 +305,17 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 		// but many don't.
 		question := query.FirstQuestion()
 		if question != nil {
-			d.ChangeName(question.Name)
+			reply.ChangeName(question.Name)
 		}
 	}
 
 	resp := new(dns.Msg)
-	resp.RecursionAvailable = cmp.Or(d.RecursionAvailable, d.Resolver != "")
+	resp.RecursionAvailable = cmp.Or(reply.RecursionAvailable, reply.Resolver != "")
 	resp.SetReply(msg)
-	resp.Rcode = d.msg.Rcode
+	resp.Rcode = reply.msg.Rcode
 
 	if msg != nil {
-		resp.Answer = d.msg.Answer
+		resp.Answer = reply.msg.Answer
 	}
 
 	return resp

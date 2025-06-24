@@ -25,8 +25,11 @@ type DnsQuery struct {
 
 // Construct a DnsQuery from a dns.Msg
 func NewDnsQueryFromMsg(msg *dns.Msg) (*DnsQuery, error) {
+	if msg == nil {
+		msg = new(dns.Msg)
+	}
 	query := DnsQuery{
-		msg: *cmp.Or(msg, new(dns.Msg)),
+		msg: *msg.Copy(),
 	}
 
 	if _, err := query.msg.Pack(); err != nil {
