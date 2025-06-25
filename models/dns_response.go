@@ -39,8 +39,11 @@ type DnsResponse struct {
 }
 
 func NewDnsResponseFromMsg(msg *dns.Msg) (*DnsResponse, error) {
+	if msg == nil {
+		msg = new(dns.Msg)
+	}
 	response := DnsResponse{
-		msg: cmp.Or(msg, new(dns.Msg)),
+		msg: msg.Copy(),
 	}
 
 	if _, err := response.msg.Pack(); err != nil {
@@ -140,6 +143,10 @@ func (d *DnsResponse) ChangeNameFrom(original string, to string, ttl time.Durati
 		Type: dns.TypeCNAME,
 		TTL:  ttl,
 		Data: to,
+	}
+
+	if original == to {
+		return
 	}
 
 	for _, rr := range d.msg.Answer {
@@ -285,7 +292,8 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 		return nil
 	}
 
-	d.bumpAnswerTTLs()
+	reply := d.Copy()
+	reply.bumpAnswerTTLs()
 
 	query, err := NewDnsQueryFromMsg(msg)
 	if err == nil {
@@ -297,17 +305,17 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 		// but many don't.
 		question := query.FirstQuestion()
 		if question != nil {
-			d.ChangeName(question.Name)
+			reply.ChangeName(question.Name)
 		}
 	}
 
 	resp := new(dns.Msg)
-	resp.RecursionAvailable = cmp.Or(d.RecursionAvailable, d.Resolver != "")
+	resp.RecursionAvailable = cmp.Or(reply.RecursionAvailable, reply.Resolver != "")
 	resp.SetReply(msg)
-	resp.Rcode = d.msg.Rcode
+	resp.Rcode = reply.msg.Rcode
 
 	if msg != nil {
-		resp.Answer = d.msg.Answer
+		resp.Answer = reply.msg.Answer
 	}
 
 	return resp
@@ -315,6 +323,9 @@ func (d *DnsResponse) AsReplyToMsg(msg *dns.Msg) *dns.Msg {
 
 func (d *DnsResponse) Copy() DnsResponse {
 	resp, _ := NewDnsResponseFromMsg(d.msg)
+	resp.FromCache = d.FromCache
+	resp.Expires = d.Expires
+	resp.Resolver = d.Resolver
 
 	return *resp
 }
@@ -351,6 +362,8 @@ func NewDnsAnswerFromRR(answer dns.RR) (*DNSAnswer, error) {
 		dnsAnswer.Data = rr.Ns
 	case *dns.HTTPS:
 		dnsAnswer.Data = rr.Target
+	case *dns.PTR:
+		dnsAnswer.Data = rr.Ptr
 	default:
 		return nil, UnsupportedRR{answer.Header().Rrtype}
 	}
@@ -419,6 +432,12 @@ func (answer DNSAnswer) ToRR() (dns.RR, error) {
 		rr := new(dns.HTTPS)
 		rr.Hdr = hdr
 		rr.Target = answer.Data
+		return rr, nil
+
+	case dns.TypePTR:
+		rr := new(dns.PTR)
+		rr.Hdr = hdr
+		rr.Ptr = answer.Data
 		return rr, nil
 
 	default:

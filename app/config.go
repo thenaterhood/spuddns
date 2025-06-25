@@ -8,12 +8,15 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"slices"
+	"strconv"
+
 	"strings"
 
-	"slices"
-
 	"github.com/miekg/dns"
+	"github.com/thenaterhood/spuddns/cache"
 	"github.com/thenaterhood/spuddns/models"
+	"github.com/thenaterhood/spuddns/resolver"
 	"github.com/thenaterhood/spuddns/system"
 )
 
@@ -48,9 +51,13 @@ type AppConfig struct {
 	ForwardCpeId bool `json:"forward_cpe_id"`
 	// Domains and networks (IPs and CIDR) that should not be
 	// cached, if caching is enabled
-	DoNotCache      []string `json:"do_not_cache"`
-	LogLevel        int      `json:"log_level"`
-	ForceMinimumTtl int      `json:"force_minimum_ttl"`
+	DoNotCache []string `json:"do_not_cache"`
+	LogLevel   int      `json:"log_level"`
+	MdnsEnable bool     `json:"mdns_enable"`
+	// Whether to forward mDNS to an upstream server. Defaults
+	// to disabled.
+	MdnsForward     bool `json:"mdns_forward"`
+	ForceMinimumTtl int  `json:"force_minimum_ttl"`
 	// Attempt to maintain frequently used queries in
 	// the cache so clients always received a cached response
 	PredictiveCache bool `json:"predictive_cache"`
@@ -62,7 +69,11 @@ type AppConfig struct {
 	// resolver fails to resolve them so an outage of upstream
 	// DNS doesn't cause a full network failure. Enabling this
 	// also enables PredictiveCache.
-	ResilientCache      bool                `json:"resilient_cache"`
+	ResilientCache bool `json:"resilient_cache"`
+	// If not empty, spuddns will periodically flush its cache to
+	// this path and will load it at start to persist the cache between
+	// restarts.
+	PersistentCacheFile string              `json:"persistent_cache_file"`
 	UpstreamResolvers   []string            `json:"upstream_resolvers"`
 	ConditionalForwards map[string][]string `json:"conditional_forwards"`
 	RespectResolveConf  bool                `json:"respect_resolvconf"`
@@ -71,6 +82,7 @@ type AppConfig struct {
 	skip_cache_nets  []net.IPNet        `json:"-"`
 	skip_cache_regex *regexp.Regexp     `json:"-"`
 	ResolvConf       *system.ResolvConf `json:"-"`
+	EtcHosts         *system.EtcHosts   `json:"-"`
 }
 
 // Access control list item
@@ -192,6 +204,34 @@ func (cfg AppConfig) GetFullyQualifiedNames(name string) []string {
 	return cfg.ResolvConf.GetFullyQualifiedNames(name)
 }
 
+func (cfg AppConfig) GetResolverConfig(appState *AppState, qname string, clientId *string, clientIp *string) (*resolver.DnsResolverConfig, error) {
+	appCache := appState.Cache
+
+	accessControl, err := cfg.GetACItem(clientId, clientIp)
+	if err != nil {
+		return nil, err
+	}
+
+	if accessControl != nil && !accessControl.UseSharedCache {
+		appCache = &cache.DummyCache{}
+	}
+	resolverConfig := resolver.DnsResolverConfig{
+		Servers:          []string{},
+		Metrics:          appState.Metrics,
+		Logger:           appState.Log,
+		ForceMimimumTtl:  cfg.ForceMinimumTtl,
+		Cache:            appCache,
+		DefaultForwarder: appState.DefaultForwarder,
+		Mdns: &resolver.MdnsConfig{
+			Enable: cfg.MdnsEnable,
+		},
+	}
+
+	resolverConfig.Servers = cfg.GetUpstreamResolvers(qname, clientId, clientIp)
+
+	return &resolverConfig, nil
+}
+
 func (cfg AppConfig) GetUpstreamResolvers(name string, clientId *string, clientIp *string) []string {
 	upstreamResolvers := []string{}
 	accessControl, err := cfg.GetACItem(clientId, clientIp)
@@ -229,7 +269,7 @@ func (cfg AppConfig) GetUpstreamResolvers(name string, clientId *string, clientI
 	}
 
 	if cfg.ResolvConf != nil {
-		if cfg.ResolvConf.SearchDomainContains(name) && len(cfg.ResolvConf.Nameservers) > 0 {
+		if len(cfg.ResolvConf.Nameservers) > 0 {
 			return cfg.ResolvConf.Nameservers
 		}
 
@@ -285,8 +325,11 @@ func GetDefaultConfig() AppConfig {
 		DisableMetrics:      true,
 		ForceMinimumTtl:     -1,
 		LogLevel:            int(slog.LevelInfo),
+		MdnsEnable:          true,
+		MdnsForward:         false,
 		PredictiveCache:     true,
 		PredictiveThreshold: 10,
+		PersistentCacheFile: "",
 		ResilientCache:      true,
 		UpstreamResolvers:   []string{},
 		ConditionalForwards: map[string][]string{},
@@ -294,6 +337,77 @@ func GetDefaultConfig() AppConfig {
 		ResolvConfPath:      "/etc/resolv.conf",
 		skip_cache_nets:     []net.IPNet{},
 	}
+}
+
+func getEnvBool(name string, def bool) bool {
+	data := os.Getenv(name)
+	if data == "" {
+		return def
+	}
+	return data == "1" || strings.ToLower(data) == "true" || strings.ToLower(data) == "yes"
+}
+
+func getEnvList(name string, def []string) []string {
+	data := os.Getenv(name)
+	if data == "" {
+		return def
+	}
+	return strings.Fields(data)
+}
+
+func getEnvInt(name string, def int) int {
+	data := os.Getenv(name)
+
+	if data == "" {
+		return def
+	}
+	ret, err := strconv.Atoi(data)
+	if err != nil {
+		return def
+	}
+
+	return ret
+}
+
+func getEnvMapList(name string, def map[string][]string) map[string][]string {
+	data := os.Getenv(name)
+	ret := map[string][]string{}
+
+	if data == "" {
+		return def
+	}
+
+	list := strings.Fields(data)
+	for _, item := range list {
+		split := strings.SplitN(item, ":", 2)
+		if len(split) != 2 {
+			continue
+		}
+
+		ret[split[0]] = []string{split[1]}
+	}
+
+	return ret
+}
+
+func getEnvironmentConfig() AppConfig {
+	config := GetDefaultConfig()
+
+	config.DnsServerPort = getEnvInt("DNS_SERVER_PORT", config.DnsServerPort)
+	config.DnsOverHttpEnable = getEnvBool("DNS_OVER_HTTP_ENABLE", config.DnsOverHttpEnable)
+	config.MdnsEnable = getEnvBool("MDNS_ENABLE", config.MdnsEnable)
+	config.RespectResolveConf = false // assuming docker
+	config.UpstreamResolvers = getEnvList("UPSTREAM_RESOLVERS", config.UpstreamResolvers)
+	config.ConditionalForwards = getEnvMapList("CONDITIONAL_FORWARDS", config.ConditionalForwards)
+	config.DisableMetrics = getEnvBool("DISABLE_METRICS", config.DisableMetrics)
+
+	config.ResolvConf = &system.ResolvConf{
+		Search:      getEnvList("SEARCH_DOMAINS", []string{}),
+		Nameservers: config.UpstreamResolvers,
+		Options:     map[string]string{},
+	}
+
+	return config
 }
 
 func GetConfig(path string) (*AppConfig, error) {
@@ -306,6 +420,7 @@ func GetConfig(path string) (*AppConfig, error) {
 
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
+		config = getEnvironmentConfig()
 		loadedConfig = &config
 		return &config, nil
 	}

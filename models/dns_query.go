@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"strings"
 
 	"github.com/miekg/dns"
 )
@@ -24,8 +25,11 @@ type DnsQuery struct {
 
 // Construct a DnsQuery from a dns.Msg
 func NewDnsQueryFromMsg(msg *dns.Msg) (*DnsQuery, error) {
+	if msg == nil {
+		msg = new(dns.Msg)
+	}
 	query := DnsQuery{
-		msg: *cmp.Or(msg, new(dns.Msg)),
+		msg: *msg.Copy(),
 	}
 
 	if _, err := query.msg.Pack(); err != nil {
@@ -51,6 +55,16 @@ func NewDnsQueryFromBytes(msg []byte) (*DnsQuery, error) {
 	}
 
 	return NewDnsQueryFromMsg(dnsReq)
+}
+
+func (d *DnsQuery) IsMdns() bool {
+	for _, q := range d.msg.Question {
+		if strings.HasSuffix(q.Name, ".local.") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (d *DnsQuery) Equal(other *DnsQuery) bool {
@@ -208,12 +222,12 @@ func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 				return NewServFailDnsResponse(), err
 			}
 
-			if !answer.IsSuccess() {
-				return nil, nil
-			}
-
 			if answer == nil {
 				return NewNoErrorDnsResponse(), nil
+			}
+
+			if !answer.IsSuccess() {
+				return nil, nil
 			}
 
 			decomposedAnswers, err := answer.Answers()

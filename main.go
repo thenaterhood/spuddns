@@ -41,6 +41,10 @@ func main() {
 		Level: slog.Level(config.LogLevel),
 	}))
 
+	if len(config.UpstreamResolvers) < 1 {
+		stdoutLogger.Warn("no upstream resolvers are configured!")
+	}
+
 	metrics := metrics.GetMetrics(metrics.MetricsConfig{
 		Enable: !config.DisableMetrics,
 		Logger: stdoutLogger,
@@ -75,12 +79,25 @@ func main() {
 	}
 
 	if config.RespectResolveConf {
-		resolvconf, err := system.NewResolvConfFromPath(config.ResolvConfPath)
+		resolvconf, err := system.NewResolvConfFromPath(config.ResolvConfPath, state.Log)
 		if err != nil {
-			state.Log.Warn("failed to read resolvconf", "error", err)
-		} else {
+			state.Log.Warn("failed to read resolvconf on start - will retry", "error", err)
+		}
+
+		if resolvconf != nil {
 			config.ResolvConf = resolvconf
 			resolvconf.Watch()
+		}
+	}
+
+	config.EtcHosts = system.NewEtcHosts(state.Log)
+
+	if config.PersistentCacheFile != "" {
+		persistentCache := daemon.NewPersistentCache(*config, &state)
+		if err := persistentCache.Start(); err != nil {
+			state.Log.Warn("failed to start persistent cache", "error", err)
+		} else {
+			defer persistentCache.Stop()
 		}
 	}
 

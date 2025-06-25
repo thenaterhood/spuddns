@@ -10,7 +10,7 @@ import (
 	"github.com/thenaterhood/spuddns/models"
 )
 
-type ExpireCallbackFn func(question dns.Question, response models.DnsResponse, retrieveCount int, cache Cache)
+type ExpireCallbackFn func(question dns.Question, response models.DnsResponse, retrieveCount int, cache Cache) bool
 
 type CacheConfig struct {
 	Enable  bool
@@ -22,6 +22,8 @@ type Cache interface {
 	CacheDnsResponse(dns.Question, models.DnsResponse) error
 	SetExpireCallback(cb ExpireCallbackFn)
 	QueryDns(models.DnsQuery) (*models.DnsResponse, error)
+	Persist(string) error
+	Load(string) error
 }
 
 type cacheEntry struct {
@@ -37,7 +39,7 @@ func getDnsQuestionCacheKey(question dns.Question) string {
 
 func GetCache(config CacheConfig) (Cache, error) {
 	if config.Enable {
-		cache, err := getInMemoryCache(false, config)
+		cache, err := getSpudcache(false, config)
 		if err != nil {
 			return &DummyCache{}, err
 		}

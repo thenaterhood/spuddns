@@ -17,6 +17,10 @@ type httpsClient struct {
 }
 
 func (c httpsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
+	if q.IsMdns() && !c.clientConfig.Mdns.Forward {
+		return nil, nil
+	}
+
 	timer := c.clientConfig.Metrics.GetForwardTimer()
 	defer c.clientConfig.Metrics.ObserveTimer(timer)
 	c.clientConfig.Logger.Debug("attempting to resolve query with dns over https")

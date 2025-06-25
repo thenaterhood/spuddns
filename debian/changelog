@@ -1,3 +1,20 @@
+spuddns (0.3.0-1) unstable; urgency=low
+
+  * Add support for resolving mDNS queries
+  * Add support for PTR records
+  * Add support for persistent cache
+  * Add support for /etc/hosts
+  * Add support for a limited configuration using environment vars for Docker
+  * Fix search domain being appended twice if not fully qualified
+  * Fix sometimes not using nameservers from resolv.conf
+  * Fix not using resolv.conf if not immediately available at start
+  * Fix expanded names not being cached correctly
+  * Fix adding CNAME unnecessarily if domain was not expanded
+  * Fix possible crash on resolver returning nil
+  * Move from bigcache to custom implementation
+
+ -- Nate Levesque <public@thenaterhood.com>  Sun, 15 Jun 2025 00:05:51 -0400
+
 spuddns (0.2.0-1) unstable; urgency=low
 
   * Return NOERROR if no RR exists but an A or AAAA does

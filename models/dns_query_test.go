@@ -180,10 +180,18 @@ func TestNewQuery(t *testing.T) {
 					)
 				}
 
-				if test.expectedQuery.FirstQuestion() != query.FirstQuestion() {
-					t.Error(
-						"query questions did not match",
-					)
+				if test.expectedQuery.FirstQuestion() != nil && query.FirstQuestion() != nil {
+					if *test.expectedQuery.FirstQuestion() != *query.FirstQuestion() {
+						t.Error(
+							"non-nil query questions did not match",
+						)
+					}
+				} else {
+					if test.expectedQuery.FirstQuestion() != query.FirstQuestion() {
+						t.Error(
+							"query questions did not match",
+						)
+					}
 				}
 
 				testPacked, _ := test.expectedQuery.PreparedMsg().Pack()

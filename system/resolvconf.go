@@ -3,6 +3,7 @@ package system
 import (
 	"bufio"
 	"io"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -17,22 +18,30 @@ type ResolvConf struct {
 	Options      map[string]string
 	path         string
 	lastModified time.Time
+	log          *slog.Logger
 	// sortlist is intentionally excluded for now
 }
 
 func (r *ResolvConf) Watch() {
 	go func() {
+		r.log.Debug("Starting resolvconf watch", "file", r.path)
 		for {
+			time.Sleep(5 * time.Second)
+
 			fileStats, err := os.Stat(r.path)
 			if err != nil {
+				r.log.Warn("failed to stat resolvconf", "file", r.path, "err", err)
 				continue
 			}
 
 			if fileStats.ModTime().After(r.lastModified) {
-				newResolvConf, err := NewResolvConfFromPath(r.path)
+				newResolvConf, err := NewResolvConfFromPath(r.path, r.log)
 				if err != nil {
+					r.log.Warn("failed to read resolvconf", "file", r.path, "err", err)
 					continue
 				}
+
+				r.log.Debug("reloaded resolvconf", "file", r.path)
 
 				r.Search = newResolvConf.Search
 				r.Nameservers = newResolvConf.Nameservers
@@ -40,8 +49,6 @@ func (r *ResolvConf) Watch() {
 				r.path = newResolvConf.path
 				r.lastModified = newResolvConf.lastModified
 			}
-
-			time.Sleep(5 * time.Second)
 		}
 	}()
 }
@@ -92,7 +99,7 @@ func (r *ResolvConf) GetFullyQualifiedNames(name string) []string {
 	}
 
 	for _, search := range r.Search {
-		if strings.HasSuffix(name, search) {
+		if strings.HasSuffix(name, makeQualified(search)) {
 			continue
 		}
 		names = append(names, makeQualified(name+search))
@@ -119,9 +126,10 @@ func (r *ResolvConf) SearchDomainContains(name string) bool {
 	return false
 }
 
-func newResolvConfFromReader(reader io.Reader) (*ResolvConf, error) {
+func newResolvConfFromReader(reader io.Reader, log *slog.Logger) (*ResolvConf, error) {
 	resolvConf := ResolvConf{
 		Options: map[string]string{},
+		log:     log,
 	}
 	scanner := bufio.NewScanner(reader)
 
@@ -150,31 +158,25 @@ func newResolvConfFromReader(reader io.Reader) (*ResolvConf, error) {
 		}
 	}
 
+	resolvConf.log.Info("read resolvconf", "servers", resolvConf.Nameservers, "search", resolvConf.Search)
+
 	return &resolvConf, nil
 }
 
-func makeQualified(name string) string {
-	if len(name) < 1 {
-		return "."
+func NewResolvConfFromPath(path string, log *slog.Logger) (*ResolvConf, error) {
+	resolvConf := &ResolvConf{
+		Options: map[string]string{},
+		log:     log,
+		path:    path,
 	}
-
-	if name[len(name)-1] != '.' {
-		return name + "."
-	}
-
-	return name
-}
-
-func NewResolvConfFromPath(path string) (*ResolvConf, error) {
-
 	conf, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return resolvConf, err
 	}
 
 	defer conf.Close()
 
-	resolvConf, err := newResolvConfFromReader(conf)
+	resolvConf, err = newResolvConfFromReader(conf, log)
 	if err != nil {
 		return resolvConf, err
 	}

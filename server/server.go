@@ -33,6 +33,13 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 	var answer *models.DnsResponse
 	var err error
 
+	if ds.appConfig.EtcHosts != nil {
+		answer, err = query.ResolveWith(ds.appConfig.EtcHosts)
+		if answer != nil && err == nil {
+			return answer, nil
+		}
+	}
+
 	names := ds.appConfig.GetFullyQualifiedNames(question.Name)
 
 	for _, alternateName := range names {
@@ -55,7 +62,7 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 		if answer != nil && answer.IsSuccess() {
 			if ds.appState.DnsPipeline != nil {
 				go func() {
-					*ds.appState.DnsPipeline <- models.DnsExchange{Question: *query.FirstQuestionCopy(), Response: answer.Copy()}
+					*ds.appState.DnsPipeline <- models.DnsExchange{Question: *modifiedQuery.FirstQuestion(), Response: answer.Copy()}
 				}()
 
 			}
@@ -124,6 +131,9 @@ func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse,
 		ForceMimimumTtl:  ds.appConfig.ForceMinimumTtl,
 		Cache:            appCache,
 		DefaultForwarder: ds.appState.DefaultForwarder,
+		Mdns: &resolver.MdnsConfig{
+			Enable: ds.appConfig.MdnsEnable,
+		},
 	}
 
 	answer, err = ds.resolveQuery(query, resolverConfig)
