@@ -223,7 +223,7 @@ func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
 			}
 
 			if answer == nil {
-				return NewNoErrorDnsResponse(), nil
+				return nil, nil
 			}
 
 			if !answer.IsSuccess() {
