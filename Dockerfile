@@ -6,7 +6,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 
-RUN go build
+RUN go build -o spuddns .
 
 FROM alpine:3.22.0
 
