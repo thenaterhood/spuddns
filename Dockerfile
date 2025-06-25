@@ -11,4 +11,4 @@ RUN go build
 FROM alpine:3.22.0
 
 COPY --from=builder /app/spuddns /spuddns
-ENTRYPOINT ["/spuddns /etc/spuddns.json"]
+ENTRYPOINT ["/spuddns", "/etc/spuddns.json"]

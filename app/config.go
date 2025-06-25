@@ -339,24 +339,43 @@ func GetDefaultConfig() AppConfig {
 	}
 }
 
-func getEnvBool(name string) bool {
+func getEnvBool(name string, def bool) bool {
 	data := os.Getenv(name)
+	if data == "" {
+		return def
+	}
 	return data == "1" || strings.ToLower(data) == "true" || strings.ToLower(data) == "yes"
 }
 
-func getEnvList(name string) []string {
+func getEnvList(name string, def []string) []string {
 	data := os.Getenv(name)
+	if data == "" {
+		return def
+	}
 	return strings.Fields(data)
 }
 
-func getEnvInt(name string) (int, error) {
+func getEnvInt(name string, def int) int {
 	data := os.Getenv(name)
-	return strconv.Atoi(data)
+
+	if data == "" {
+		return def
+	}
+	ret, err := strconv.Atoi(data)
+	if err != nil {
+		return def
+	}
+
+	return ret
 }
 
-func getEnvMapList(name string) map[string][]string {
+func getEnvMapList(name string, def map[string][]string) map[string][]string {
 	data := os.Getenv(name)
 	ret := map[string][]string{}
+
+	if data == "" {
+		return ret
+	}
 
 	list := strings.Fields(data)
 	for _, item := range list {
@@ -374,20 +393,16 @@ func getEnvMapList(name string) map[string][]string {
 func getEnvironmentConfig() AppConfig {
 	config := GetDefaultConfig()
 
-	port, err := getEnvInt("DNS_SERVER_PORT")
-	if err == nil {
-		config.DnsServerPort = port
-	}
-
-	config.DnsOverHttpEnable = getEnvBool("DNS_OVER_HTTP_ENABLE")
-	config.MdnsEnable = getEnvBool("MDNS_ENABLE")
+	config.DnsServerPort = getEnvInt("DNS_SERVER_PORT", config.DnsServerPort)
+	config.DnsOverHttpEnable = getEnvBool("DNS_OVER_HTTP_ENABLE", config.DnsOverHttpEnable)
+	config.MdnsEnable = getEnvBool("MDNS_ENABLE", config.MdnsEnable)
 	config.RespectResolveConf = false // assuming docker
-	config.UpstreamResolvers = getEnvList("UPSTREAM_RESOLVERS")
-	config.ConditionalForwards = getEnvMapList("CONDITIONAL_FORWARDS")
-	config.DisableMetrics = getEnvBool("DISABLE_METRICS")
+	config.UpstreamResolvers = getEnvList("UPSTREAM_RESOLVERS", config.UpstreamResolvers)
+	config.ConditionalForwards = getEnvMapList("CONDITIONAL_FORWARDS", config.ConditionalForwards)
+	config.DisableMetrics = getEnvBool("DISABLE_METRICS", config.DisableMetrics)
 
 	config.ResolvConf = &system.ResolvConf{
-		Search:      getEnvList("SEARCH_DOMAINS"),
+		Search:      getEnvList("SEARCH_DOMAINS", []string{}),
 		Nameservers: config.UpstreamResolvers,
 		Options:     map[string]string{},
 	}
