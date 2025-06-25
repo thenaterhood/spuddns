@@ -41,6 +41,10 @@ func main() {
 		Level: slog.Level(config.LogLevel),
 	}))
 
+	if len(config.UpstreamResolvers) < 1 {
+		stdoutLogger.Warn("no upstream resolvers are configured!")
+	}
+
 	metrics := metrics.GetMetrics(metrics.MetricsConfig{
 		Enable: !config.DisableMetrics,
 		Logger: stdoutLogger,

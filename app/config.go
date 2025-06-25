@@ -374,7 +374,7 @@ func getEnvMapList(name string, def map[string][]string) map[string][]string {
 	ret := map[string][]string{}
 
 	if data == "" {
-		return ret
+		return def
 	}
 
 	list := strings.Fields(data)
