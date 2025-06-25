@@ -10,6 +10,9 @@ RUN go build -o spuddns .
 
 FROM debian:bookworm-slim
 
+RUN apt update
+RUN apt install -y ca-certificates
+
 COPY --from=builder /app/spuddns /spuddns
 
 ENTRYPOINT ["/spuddns", "/etc/spuddns.json"]
