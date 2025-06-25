@@ -13,7 +13,7 @@ spuddns (0.3.0-1) unstable; urgency=low
   * Fix possible crash on resolver returning nil
   * Move from bigcache to custom implementation
 
- -- Nate Levesque <public@thenaterhood.com>  Sun, 15 Jun 2025 00:05:51 -0400
+ -- Nate Levesque <public@thenaterhood.com>  Tue, 23 Jun 2025 00:22:44 -0400
 
 spuddns (0.2.0-1) unstable; urgency=low
 
