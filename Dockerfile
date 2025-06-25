@@ -8,7 +8,8 @@ COPY . .
 
 RUN go build -o spuddns .
 
-FROM alpine:3.22.0
+FROM debian:bookworm-slim
 
 COPY --from=builder /app/spuddns /spuddns
+
 ENTRYPOINT ["/spuddns", "/etc/spuddns.json"]
