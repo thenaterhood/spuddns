@@ -71,11 +71,8 @@ func main() {
 			state.Cache.SetExpireCallback(cacheMinder.RefreshExpiringCacheItem)
 		}
 		cachePipeline := daemon.NewCachePipeline(*config, &state)
-		if err := cachePipeline.Start(); err != nil {
-			state.Log.Warn("caching failed to start", "err", err)
-		} else {
-			defer cachePipeline.Stop()
-		}
+		cachePipelineCancel := cachePipeline.Start()
+		defer cachePipelineCancel()
 	}
 
 	if config.RespectResolveConf {
@@ -86,7 +83,8 @@ func main() {
 
 		if resolvconf != nil {
 			config.ResolvConf = resolvconf
-			resolvconf.Watch()
+			resolvConfCancel := resolvconf.Watch()
+			defer resolvConfCancel()
 		}
 	}
 
@@ -94,11 +92,8 @@ func main() {
 
 	if config.PersistentCacheFile != "" {
 		persistentCache := daemon.NewPersistentCache(*config, &state)
-		if err := persistentCache.Start(); err != nil {
-			state.Log.Warn("failed to start persistent cache", "error", err)
-		} else {
-			defer persistentCache.Stop()
-		}
+		persistentCacheCancel := persistentCache.Start()
+		defer persistentCacheCancel()
 	}
 
 	metricsErr := state.Metrics.Start()

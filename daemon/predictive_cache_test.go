@@ -85,8 +85,8 @@ func TestRefreshExpiringCacheItem(t *testing.T) {
 
 	state := getAppState(cache)
 	cachePipeline := NewCachePipeline(appCfg, state)
-	cachePipeline.Start()
-	defer cachePipeline.Stop()
+	cachePipelineCancel := cachePipeline.Start()
+	defer cachePipelineCancel()
 
 	minder := NewCacheMinder(&appCfg, *state)
 	minder.RefreshExpiringCacheItem(q, *answer, 0, cache)
