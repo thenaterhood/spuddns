@@ -2,6 +2,7 @@ package server
 
 import (
 	"cmp"
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -34,7 +35,7 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 	var err error
 
 	if ds.appConfig.EtcHosts != nil {
-		answer, err = query.ResolveWith(ds.appConfig.EtcHosts)
+		answer, err = query.ResolveWith(ds.appConfig.EtcHosts, context.Background())
 		if answer != nil && err == nil {
 			return answer, nil
 		}
@@ -57,7 +58,9 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 		}
 
 		forwarder := resolver.GetDnsResolver(resolverConfig)
-		answer, err = modifiedQuery.ResolveWith(forwarder)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		answer, err = modifiedQuery.ResolveWith(forwarder, ctx)
 
 		if answer != nil && answer.IsSuccess() {
 			if ds.appState.DnsPipeline != nil {
