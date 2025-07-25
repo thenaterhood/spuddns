@@ -15,7 +15,6 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/thenaterhood/spuddns/app"
-	"github.com/thenaterhood/spuddns/cache"
 	"github.com/thenaterhood/spuddns/models"
 	"github.com/thenaterhood/spuddns/resolver"
 )
@@ -28,22 +27,44 @@ type DnsServer struct {
 	dns_over_http_server *http.Server
 }
 
-func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver.DnsResolverConfig) (*models.DnsResponse, error) {
+func resolveQuery(query models.DnsQuery, appState *app.AppState, appConfig *app.AppConfig) (*models.DnsResponse, error) {
 	question := query.FirstQuestionCopy()
 	hasUpstreams := false
 	var answer *models.DnsResponse
 	var err error
 
-	if ds.appConfig.EtcHosts != nil {
-		answer, err = query.ResolveWith(ds.appConfig.EtcHosts, context.Background())
+	forwardCpeId := appConfig.ForwardCpeId
+	cpeId := appConfig.AddCpeId
+
+	if !forwardCpeId {
+		query.ClearExtra()
+	}
+
+	if query.CpeId() == "" {
+		query.SetCpeId(cpeId)
+	}
+
+	if question == nil {
+		appState.Log.Warn("refusing to process empty dns question")
+		return models.NewServFailDnsResponse(), nil
+	}
+
+	if appConfig.EtcHosts != nil {
+		answer, err = query.ResolveWith(appConfig.EtcHosts, context.Background())
 		if answer != nil && err == nil {
 			return answer, nil
 		}
 	}
 
-	names := ds.appConfig.GetFullyQualifiedNames(question.Name)
+	names := appConfig.GetFullyQualifiedNames(question.Name)
 
 	for _, alternateName := range names {
+		resolverConfig, err := appConfig.GetResolverConfig(appState, query.FirstQuestion().Name, query.ClientId, query.ClientIp)
+		if err != nil {
+			appState.Log.Warn("unable to get resolver config for question", "err", err)
+			return models.NewRefusedDnsResponse(), err
+		}
+
 		resolverConfig.Logger.Debug("trying name", "name", alternateName, "originalName", question.Name, "qtype", question.Qtype, "qclass", question.Qclass)
 		question.Name = alternateName
 		modifiedQuery, modifiedQueryErr := query.WithDifferentQuestion(*question)
@@ -52,20 +73,20 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 			continue
 		}
 
-		resolverConfig.Servers = ds.appConfig.GetUpstreamResolvers(alternateName, query.ClientId, query.ClientIp)
+		resolverConfig.Servers = appConfig.GetUpstreamResolvers(alternateName, query.ClientId, query.ClientIp)
 		if len(resolverConfig.Servers) > 0 {
 			hasUpstreams = true
 		}
 
-		forwarder := resolver.GetDnsResolver(resolverConfig)
+		forwarder := resolver.GetDnsResolver(*resolverConfig)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		answer, err = modifiedQuery.ResolveWith(forwarder, ctx)
 
 		if answer != nil && answer.IsSuccess() {
-			if ds.appState.DnsPipeline != nil {
+			if appState.DnsPipeline != nil {
 				go func() {
-					*ds.appState.DnsPipeline <- models.DnsExchange{Question: *modifiedQuery.FirstQuestion(), Response: answer.Copy()}
+					*appState.DnsPipeline <- models.DnsExchange{Question: *modifiedQuery.FirstQuestion(), Response: answer.Copy()}
 				}()
 
 			}
@@ -94,58 +115,14 @@ func (ds *DnsServer) resolveQuery(query models.DnsQuery, resolverConfig resolver
 }
 
 func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse, error) {
-	accessControl, err := ds.appConfig.GetACItem(query.ClientId, query.ClientIp)
-	if err != nil {
-		return models.NewRefusedDnsResponse(), models.UnauthorizedError{}
-	}
 
-	forwardCpeId := ds.appConfig.ForwardCpeId
-	cpeId := ds.appConfig.AddCpeId
-
-	if accessControl != nil {
-		forwardCpeId = accessControl.ForwardCpeId
-		cpeId = accessControl.AddCpeId
-	}
-
-	if !forwardCpeId {
-		query.ClearExtra()
-	}
-
-	if query.CpeId() == "" {
-		query.SetCpeId(cpeId)
-	}
-
-	var answer *models.DnsResponse
-	question := query.FirstQuestionCopy()
-	if question == nil {
-		ds.appState.Log.Warn("refusing to process empty dns question")
-		return models.NewServFailDnsResponse(), nil
-	}
-
-	appCache := ds.appState.Cache
-
-	if accessControl != nil && !accessControl.UseSharedCache {
-		appCache = &cache.DummyCache{}
-	}
-	resolverConfig := resolver.DnsResolverConfig{
-		Servers:          []string{},
-		Metrics:          ds.appState.Metrics,
-		Logger:           ds.appState.Log,
-		ForceMimimumTtl:  ds.appConfig.ForceMinimumTtl,
-		Cache:            appCache,
-		DefaultForwarder: ds.appState.DefaultForwarder,
-		Mdns: &resolver.MdnsConfig{
-			Enable: ds.appConfig.MdnsEnable,
-		},
-	}
-
-	answer, err = ds.resolveQuery(query, resolverConfig)
+	answer, err := resolveQuery(query, ds.appState, ds.appConfig)
 
 	if answer != nil && answer.IsSuccess() {
 		if answer.FromCache {
-			resolverConfig.Metrics.IncQueriesAnsweredFromCache()
+			ds.appState.Metrics.IncQueriesAnsweredFromCache()
 		}
-		resolverConfig.Metrics.IncQueriesAnswered()
+		ds.appState.Metrics.IncQueriesAnswered()
 		return answer, nil
 	}
 
