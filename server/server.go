@@ -59,7 +59,7 @@ func resolveQuery(query models.DnsQuery, appState *app.AppState, appConfig *app.
 	names := appConfig.GetFullyQualifiedNames(question.Name)
 
 	for _, alternateName := range names {
-		resolverConfig, err := appConfig.GetResolverConfig(appState, query.FirstQuestion().Name, query.ClientId, query.ClientIp)
+		resolverConfig, err := appConfig.GetResolverConfig(appState, alternateName, query.ClientId, query.ClientIp)
 		if err != nil {
 			appState.Log.Warn("unable to get resolver config for question", "err", err)
 			return models.NewRefusedDnsResponse(), err
@@ -73,7 +73,6 @@ func resolveQuery(query models.DnsQuery, appState *app.AppState, appConfig *app.
 			continue
 		}
 
-		resolverConfig.Servers = appConfig.GetUpstreamResolvers(alternateName, query.ClientId, query.ClientIp)
 		if len(resolverConfig.Servers) > 0 {
 			hasUpstreams = true
 		}
