@@ -27,7 +27,7 @@ type DnsServer struct {
 	dns_over_http_server *http.Server
 }
 
-func resolveQuery(query models.DnsQuery, appState *app.AppState, appConfig *app.AppConfig) (*models.DnsResponse, error) {
+func resolveQuery(query models.DnsQuery, appState *app.AppState, appConfig *app.AppConfig) (*models.DnsExchange, error) {
 	question := query.FirstQuestionCopy()
 	hasUpstreams := false
 	var answer *models.DnsResponse
@@ -45,14 +45,16 @@ func resolveQuery(query models.DnsQuery, appState *app.AppState, appConfig *app.
 	}
 
 	if question == nil {
-		appState.Log.Warn("refusing to process empty dns question")
-		return models.NewServFailDnsResponse(), nil
+		return &models.DnsExchange{
+			Response: *models.NewServFailDnsResponse(),
+			Question: *query.FirstQuestion(),
+		}, fmt.Errorf("refusing to process empty question")
 	}
 
 	if appConfig.EtcHosts != nil {
 		answer, err = query.ResolveWith(appConfig.EtcHosts, context.Background())
 		if answer != nil && err == nil {
-			return answer, nil
+			return &models.DnsExchange{Response: *answer, Question: *query.FirstQuestion()}, nil
 		}
 	}
 
@@ -61,15 +63,12 @@ func resolveQuery(query models.DnsQuery, appState *app.AppState, appConfig *app.
 	for _, alternateName := range names {
 		resolverConfig, err := appConfig.GetResolverConfig(appState, alternateName, query.ClientId, query.ClientIp)
 		if err != nil {
-			appState.Log.Warn("unable to get resolver config for question", "err", err)
-			return models.NewRefusedDnsResponse(), err
+			return &models.DnsExchange{Response: *models.NewRefusedDnsResponse(), Question: *query.FirstQuestion()}, err
 		}
 
-		resolverConfig.Logger.Debug("trying name", "name", alternateName, "originalName", question.Name, "qtype", question.Qtype, "qclass", question.Qclass)
 		question.Name = alternateName
 		modifiedQuery, modifiedQueryErr := query.WithDifferentQuestion(*question)
 		if modifiedQueryErr != nil {
-			resolverConfig.Logger.Warn("alternate name query was invalid", "alternateName", alternateName, "error", err)
 			continue
 		}
 
@@ -83,17 +82,11 @@ func resolveQuery(query models.DnsQuery, appState *app.AppState, appConfig *app.
 		answer, err = modifiedQuery.ResolveWith(forwarder, ctx)
 
 		if answer != nil && answer.IsSuccess() {
-			if appState.DnsPipeline != nil {
-				go func() {
-					*appState.DnsPipeline <- models.DnsExchange{Question: *modifiedQuery.FirstQuestion(), Response: answer.Copy()}
-				}()
-
-			}
-			return answer, nil
+			return &models.DnsExchange{Response: *answer, Question: *modifiedQuery.FirstQuestion()}, nil
 		}
 
 		if err != nil {
-			return models.NewServFailDnsResponse(), err
+			return &models.DnsExchange{Response: *models.NewServFailDnsResponse(), Question: *modifiedQuery.FirstQuestion()}, err
 		}
 
 		exists := modifiedQuery.NameExists(forwarder)
@@ -103,29 +96,39 @@ func resolveQuery(query models.DnsQuery, appState *app.AppState, appConfig *app.
 			if len(resolverConfig.Servers) > 0 {
 				answer.Resolver = resolverConfig.Servers[0]
 			}
-			return answer, nil
+			return &models.DnsExchange{Response: *models.NewServFailDnsResponse(), Question: *modifiedQuery.FirstQuestion()}, nil
 		}
 	}
 
 	answer = models.NewNXDomainDnsResponse()
 	answer.RecursionAvailable = hasUpstreams
 
-	return answer, nil
+	return &models.DnsExchange{Response: *answer, Question: *query.FirstQuestion()}, err
 }
 
 func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse, error) {
 
-	answer, err := resolveQuery(query, ds.appState, ds.appConfig)
-
-	if answer != nil && answer.IsSuccess() {
-		if answer.FromCache {
-			ds.appState.Metrics.IncQueriesAnsweredFromCache()
-		}
-		ds.appState.Metrics.IncQueriesAnswered()
-		return answer, nil
+	dnsExchange, err := resolveQuery(query, ds.appState, ds.appConfig)
+	if err != nil {
+		ds.appState.Log.Error("error resolving query", "err", err)
 	}
 
-	return answer, err
+	if dnsExchange != nil && dnsExchange.Response.IsSuccess() {
+		if dnsExchange.Response.FromCache {
+			ds.appState.Metrics.IncQueriesAnsweredFromCache()
+		} else {
+			if ds.appState.DnsPipeline != nil {
+				go func() {
+					*ds.appState.DnsPipeline <- *dnsExchange
+				}()
+
+			}
+		}
+		ds.appState.Metrics.IncQueriesAnswered()
+		return &dnsExchange.Response, nil
+	}
+
+	return &dnsExchange.Response, err
 }
 
 // Handle a DNS over HTTP(S) request
