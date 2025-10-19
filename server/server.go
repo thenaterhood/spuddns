@@ -2,7 +2,6 @@ package server
 
 import (
 	"cmp"
-	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -11,12 +10,10 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/miekg/dns"
 	"github.com/thenaterhood/spuddns/app"
 	"github.com/thenaterhood/spuddns/models"
-	"github.com/thenaterhood/spuddns/resolver"
 )
 
 type DnsServer struct {
@@ -25,110 +22,6 @@ type DnsServer struct {
 	standard_dns_server  *dns.Server
 	dns_over_tls_server  *dns.Server
 	dns_over_http_server *http.Server
-}
-
-func resolveQuery(query models.DnsQuery, appState *app.AppState, appConfig *app.AppConfig) (*models.DnsExchange, error) {
-	question := query.FirstQuestionCopy()
-	hasUpstreams := false
-	var answer *models.DnsResponse
-	var err error
-
-	forwardCpeId := appConfig.ForwardCpeId
-	cpeId := appConfig.AddCpeId
-
-	if !forwardCpeId {
-		query.ClearExtra()
-	}
-
-	if query.CpeId() == "" {
-		query.SetCpeId(cpeId)
-	}
-
-	if question == nil {
-		return &models.DnsExchange{
-			Response: *models.NewServFailDnsResponse(),
-			Question: *query.FirstQuestion(),
-		}, fmt.Errorf("refusing to process empty question")
-	}
-
-	if appConfig.EtcHosts != nil {
-		answer, err = query.ResolveWith(appConfig.EtcHosts, context.Background())
-		if answer != nil && err == nil {
-			return &models.DnsExchange{Response: *answer, Question: *query.FirstQuestion()}, nil
-		}
-	}
-
-	names := appConfig.GetFullyQualifiedNames(question.Name)
-
-	for _, alternateName := range names {
-		resolverConfig, err := appConfig.GetResolverConfig(appState, alternateName, query.ClientId, query.ClientIp)
-		if err != nil {
-			return &models.DnsExchange{Response: *models.NewRefusedDnsResponse(), Question: *query.FirstQuestion()}, err
-		}
-
-		question.Name = alternateName
-		modifiedQuery, modifiedQueryErr := query.WithDifferentQuestion(*question)
-		if modifiedQueryErr != nil {
-			continue
-		}
-
-		if len(resolverConfig.Servers) > 0 {
-			hasUpstreams = true
-		}
-
-		forwarder := resolver.GetDnsResolver(*resolverConfig)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		answer, err = modifiedQuery.ResolveWith(forwarder, ctx)
-
-		if answer != nil && answer.IsSuccess() {
-			return &models.DnsExchange{Response: *answer, Question: *modifiedQuery.FirstQuestion()}, nil
-		}
-
-		if err != nil {
-			return &models.DnsExchange{Response: *models.NewServFailDnsResponse(), Question: *modifiedQuery.FirstQuestion()}, err
-		}
-
-		exists := modifiedQuery.NameExists(forwarder)
-		if exists {
-			answer := models.NewNoErrorDnsResponse()
-			answer.ChangeNameFrom(query.FirstQuestion().Name, alternateName, 5*time.Minute)
-			if len(resolverConfig.Servers) > 0 {
-				answer.Resolver = resolverConfig.Servers[0]
-			}
-			return &models.DnsExchange{Response: *models.NewServFailDnsResponse(), Question: *modifiedQuery.FirstQuestion()}, nil
-		}
-	}
-
-	answer = models.NewNXDomainDnsResponse()
-	answer.RecursionAvailable = hasUpstreams
-
-	return &models.DnsExchange{Response: *answer, Question: *query.FirstQuestion()}, err
-}
-
-func (ds *DnsServer) getDnsResponse(query models.DnsQuery) (*models.DnsResponse, error) {
-
-	dnsExchange, err := resolveQuery(query, ds.appState, ds.appConfig)
-	if err != nil {
-		ds.appState.Log.Error("error resolving query", "err", err)
-	}
-
-	if dnsExchange != nil && dnsExchange.Response.IsSuccess() {
-		if dnsExchange.Response.FromCache {
-			ds.appState.Metrics.IncQueriesAnsweredFromCache()
-		} else {
-			if ds.appState.DnsPipeline != nil {
-				go func() {
-					*ds.appState.DnsPipeline <- *dnsExchange
-				}()
-
-			}
-		}
-		ds.appState.Metrics.IncQueriesAnswered()
-		return &dnsExchange.Response, nil
-	}
-
-	return &dnsExchange.Response, err
 }
 
 // Handle a DNS over HTTP(S) request
@@ -203,7 +96,7 @@ func (ds DnsServer) handleDnsOverHTTP(w http.ResponseWriter, r *http.Request) {
 	dnsReq.ClientId = &auth
 	dnsReq.ClientIp = &r.RemoteAddr
 
-	resp, err := ds.getDnsResponse(*dnsReq)
+	resp, err := ds.appState.ResolveQueryComplete(*dnsReq, ds.appConfig)
 	if err != nil {
 		ds.appState.Log.Warn("error handling dns over http request", "error", err)
 	}
@@ -233,7 +126,7 @@ func (ds *DnsServer) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 	dnsQuery.ClientId = &auth
 	dnsQuery.ClientIp = &clientIp
 
-	resp, err := ds.getDnsResponse(*dnsQuery)
+	resp, err := ds.appState.ResolveQueryComplete(*dnsQuery, ds.appConfig)
 	if err != nil {
 		ds.appState.Log.Warn("error handling dns request", "error", err)
 	}

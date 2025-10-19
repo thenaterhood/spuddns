@@ -44,7 +44,7 @@ func TestStrToIpNet(t *testing.T) {
 
 		t.Run(testName, func(t *testing.T) {
 			output := strToIpNet(input)
-			if fmt.Sprintf("%s", expected) != fmt.Sprintf("%s", output) {
+			if expected.String() != output.String() {
 				t.Errorf("str_to_ipnet(%s) actual = %d, expected = %s", input, output, expected)
 			}
 		})
