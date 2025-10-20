@@ -1,32 +1,29 @@
 package daemon
 
 import (
+	"context"
+
 	"github.com/thenaterhood/spuddns/app"
 	"github.com/thenaterhood/spuddns/models"
 )
 
 type CachePipeline struct {
-	quit   *chan bool
 	config app.AppConfig
 	state  *app.AppState
 }
 
 func NewCachePipeline(config app.AppConfig, state *app.AppState) *CachePipeline {
-	quit := make(chan bool)
 	return &CachePipeline{
 		config: config,
 		state:  state,
-		quit:   &quit,
 	}
 }
 
-func (c *CachePipeline) Stop() {
-	*c.quit <- true
-}
-
-func (c *CachePipeline) Start() error {
+func (c *CachePipeline) Start() context.CancelFunc {
 	channel := make(chan models.DnsExchange, 300)
 	c.state.DnsPipeline = &channel
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
 		c.state.Log.Debug("cache pipeline started")
@@ -48,12 +45,12 @@ func (c *CachePipeline) Start() error {
 				} else {
 					c.state.Log.Debug("skipping cache for dns response", "query", exchange.Question.Name, "qtype", exchange.Question.Qtype)
 				}
-			case <-*c.quit:
+			case <-ctx.Done():
 				c.state.Log.Debug("cache pipeline stopped")
 				return
 			}
 		}
 	}()
 
-	return nil
+	return cancel
 }

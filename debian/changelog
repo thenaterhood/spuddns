@@ -1,3 +1,11 @@
+spuddns (0.4.0-1) unstable; urgency=low
+
+  * Fix non-A record problems
+  * Move DNS resolution logic out of the server package
+  * Add cancellation func and ctx
+
+ -- Nate Levesque <public@thenaterhood.com>  Sun, 19 Oct 2025 20:07:44 -0400
+
 spuddns (0.3.0-1) unstable; urgency=low
 
   * Add support for resolving mDNS queries

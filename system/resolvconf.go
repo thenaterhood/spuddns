@@ -2,6 +2,7 @@ package system
 
 import (
 	"bufio"
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -22,35 +23,45 @@ type ResolvConf struct {
 	// sortlist is intentionally excluded for now
 }
 
-func (r *ResolvConf) Watch() {
+func (r *ResolvConf) Watch() context.CancelFunc {
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		r.log.Debug("Starting resolvconf watch", "file", r.path)
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
 		for {
-			time.Sleep(5 * time.Second)
-
-			fileStats, err := os.Stat(r.path)
-			if err != nil {
-				r.log.Warn("failed to stat resolvconf", "file", r.path, "err", err)
-				continue
-			}
-
-			if fileStats.ModTime().After(r.lastModified) {
-				newResolvConf, err := NewResolvConfFromPath(r.path, r.log)
+			select {
+			case <-ctx.Done():
+				r.log.Debug("Stopping resolvconf watch")
+				return
+			case <-ticker.C:
+				fileStats, err := os.Stat(r.path)
 				if err != nil {
-					r.log.Warn("failed to read resolvconf", "file", r.path, "err", err)
+					r.log.Warn("failed to stat resolvconf", "file", r.path, "err", err)
 					continue
 				}
 
-				r.log.Debug("reloaded resolvconf", "file", r.path)
+				if fileStats.ModTime().After(r.lastModified) {
+					newResolvConf, err := NewResolvConfFromPath(r.path, r.log)
+					if err != nil {
+						r.log.Warn("failed to read resolvconf", "file", r.path, "err", err)
+						continue
+					}
 
-				r.Search = newResolvConf.Search
-				r.Nameservers = newResolvConf.Nameservers
-				r.Options = newResolvConf.Options
-				r.path = newResolvConf.path
-				r.lastModified = newResolvConf.lastModified
+					r.log.Debug("reloaded resolvconf", "file", r.path)
+
+					r.Search = newResolvConf.Search
+					r.Nameservers = newResolvConf.Nameservers
+					r.Options = newResolvConf.Options
+					r.path = newResolvConf.path
+					r.lastModified = newResolvConf.lastModified
+				}
 			}
 		}
 	}()
+
+	return cancel
 }
 
 func (r *ResolvConf) NameIsFullyQualified(name string) bool {

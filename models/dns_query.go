@@ -3,6 +3,7 @@ package models
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"fmt"
 	"strings"
 
@@ -195,69 +196,102 @@ func (d *DnsQuery) SetCpeId(cpeId string) *DnsQuery {
 	return d
 }
 
-func (d DnsQuery) ResolveWithAsync(client DnsQueryClient, response chan *DnsResponse) {
-	go func() {
-		answer, err := d.ResolveWith(client)
+func (d DnsQuery) ResolveWithAsync(resolvCtx context.Context, client DnsQueryClient) (<-chan *DnsResponse, <-chan error) {
+	respChan := make(chan *DnsResponse, 1)
+	errChan := make(chan error, 1)
 
-		if answer != nil && err == nil {
-			response <- answer
+	go func() {
+		defer close(respChan)
+		defer close(errChan)
+
+		answer, err := d.ResolveWith(client, resolvCtx)
+		if err != nil {
+			errChan <- err
 			return
 		}
 
-		response <- nil
+		if answer != nil {
+			respChan <- answer
+			return
+		}
+
+		respChan <- nil
+		return
 	}()
+
+	return respChan, errChan
 }
 
-func (d DnsQuery) ResolveWith(client DnsQueryClient) (*DnsResponse, error) {
-	answers := []DNSAnswer{}
-	fromCache := false
-	server := ""
+func (d DnsQuery) ResolveWith(client DnsQueryClient, resolvCtx context.Context) (*DnsResponse, error) {
 
-	switch d.msg.Opcode {
-	case dns.OpcodeQuery:
-		for _, questionQuery := range d.Decompose() {
-			answer, err := client.QueryDns(questionQuery)
+	respChan := make(chan *DnsResponse, 1)
+	errChan := make(chan error, 1)
 
-			if err != nil {
-				return NewServFailDnsResponse(), err
+	go func() {
+		answers := []DNSAnswer{}
+		fromCache := false
+		server := ""
+
+		switch d.msg.Opcode {
+		case dns.OpcodeQuery:
+			for _, questionQuery := range d.Decompose() {
+				answer, err := client.QueryDns(questionQuery)
+
+				if err != nil {
+					errChan <- err
+					break
+				}
+
+				if answer == nil {
+					respChan <- nil
+					break
+				}
+
+				if !answer.IsSuccess() {
+					respChan <- nil
+					break
+				}
+
+				decomposedAnswers, err := answer.Answers()
+				if err != nil {
+					errChan <- err
+					break
+				}
+
+				answers = append(answers, decomposedAnswers...)
+
+				fromCache = cmp.Or(fromCache, answer.FromCache)
+				server = cmp.Or(server, answer.Resolver)
 			}
-
-			if answer == nil {
-				return NewNoErrorDnsResponse(), nil
-			}
-
-			if !answer.IsSuccess() {
-				return nil, nil
-			}
-
-			decomposedAnswers, err := answer.Answers()
-			if err != nil {
-				return NewServFailDnsResponse(), err
-			}
-
-			answers = append(answers, decomposedAnswers...)
-
-			fromCache = cmp.Or(fromCache, answer.FromCache)
-			server = cmp.Or(server, answer.Resolver)
+		default:
+			errChan <- InvalidQuery{fmt.Sprintf("unsupported opcode '%d'", d.msg.Opcode)}
 		}
-	default:
-		return NewServFailDnsResponse(), InvalidQuery{fmt.Sprintf("unsupported opcode '%d'", d.msg.Opcode)}
+
+		response, err := NewDnsResponseFromDnsAnswers(answers)
+		if err != nil {
+			errChan <- err
+		} else {
+			response.FromCache = fromCache
+			response.Resolver = server
+
+			respChan <- response
+		}
+	}()
+
+	select {
+	case <-resolvCtx.Done():
+		return nil, resolvCtx.Err()
+	case err := <-errChan:
+		return NewServFailDnsResponse(), err
+	case response := <-respChan:
+		return response, nil
 	}
-
-	response, err := NewDnsResponseFromDnsAnswers(answers)
-	if err != nil {
-		return nil, err
-	}
-
-	response.FromCache = fromCache
-	response.Resolver = server
-
-	return response, nil
 }
 
 func (d DnsQuery) NameExists(client DnsQueryClient) bool {
-	aChannel := make(chan *DnsResponse)
-	aaaaChannel := make(chan *DnsResponse)
+
+	var aChannel <-chan *DnsResponse
+	var aaaaChannel <-chan *DnsResponse
 
 	aQuery, err := d.WithDifferentQuestion(dns.Question{
 		Name:   d.FirstQuestion().Name,
@@ -266,9 +300,8 @@ func (d DnsQuery) NameExists(client DnsQueryClient) bool {
 	})
 
 	if err == nil && aQuery != nil {
-		aQuery.ResolveWithAsync(client, aChannel)
-	} else {
-		close(aChannel)
+		aCtx := context.Background()
+		aChannel, _ = aQuery.ResolveWithAsync(aCtx, client)
 	}
 
 	aaaaQuery, err := d.WithDifferentQuestion(dns.Question{
@@ -278,9 +311,8 @@ func (d DnsQuery) NameExists(client DnsQueryClient) bool {
 	})
 
 	if err == nil && aaaaQuery != nil {
-		aaaaQuery.ResolveWithAsync(client, aaaaChannel)
-	} else {
-		close(aaaaChannel)
+		aaaaCtx := context.Background()
+		aaaaChannel, _ = aaaaQuery.ResolveWithAsync(aaaaCtx, client)
 	}
 
 	aResult := <-aChannel

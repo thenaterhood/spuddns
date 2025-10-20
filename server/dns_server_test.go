@@ -104,12 +104,13 @@ func TestServerResolvesWithCNAMEIfNotFullyQualified(t *testing.T) {
 			t.Fatalf("unexpected error getting DNS answer from RR: %v", err)
 		}
 
-		if answer.Type == dns.TypeA {
+		switch answer.Type {
+		case dns.TypeA:
 			if answer.Data != "127.0.0.1" {
 				t.Error("unexpected A RR for example.com", answer.Data, "!= 127.0.0.1")
 			}
 			foundA = true
-		} else if answer.Type == dns.TypeCNAME {
+		case dns.TypeCNAME:
 			if answer.Data != "example.com." {
 				t.Error("unexpected CNAME RR for example.", answer.Data, "!= example.com.")
 			}
