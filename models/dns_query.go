@@ -216,7 +216,6 @@ func (d DnsQuery) ResolveWithAsync(resolvCtx context.Context, client DnsQueryCli
 		}
 
 		respChan <- nil
-		return
 	}()
 
 	return respChan, errChan
