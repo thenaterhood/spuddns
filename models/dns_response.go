@@ -3,11 +3,13 @@ package models
 import (
 	"bytes"
 	"cmp"
+	"errors"
 	"fmt"
 	"net"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/miekg/dns"
@@ -28,6 +30,20 @@ type MalformedRR struct {
 
 func (m MalformedRR) Error() string {
 	return fmt.Sprintf("RR type '%d' with data '%s' is malformed", m.Code, m.Msg)
+}
+
+func IsOversizedResponse(dnsResponse *dns.Msg, err error) bool {
+	if dnsResponse != nil && dnsResponse.Truncated {
+		return true
+	}
+
+	if err != nil {
+		if errors.Is(err, syscall.EMSGSIZE) || errors.Is(err, syscall.ENOBUFS) {
+			return true
+		}
+	}
+
+	return false
 }
 
 type DnsResponse struct {
