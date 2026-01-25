@@ -54,18 +54,16 @@ func (mdc miekgDnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, erro
 
 		response, err := models.NewDnsResponseFromMsgAndErr(r, err)
 
-		if response != nil {
-			if response.IsTruncated() {
-				mdc.clientConfig.Logger.Debug("oversized dns exchange; retrying over tcp", "server", server, "err", err)
-				r, _, err = tcpClient.Exchange(m, addr)
-				response, err = models.NewDnsResponseFromMsgAndErr(r, err)
-			}
+		if response != nil && response.IsTruncated() {
+			mdc.clientConfig.Logger.Debug("oversized dns exchange; retrying over tcp", "server", server, "err", err)
+			r, _, err = tcpClient.Exchange(m, addr)
+			response, err = models.NewDnsResponseFromMsgAndErr(r, err)
+		}
 
-			if response != nil && response.IsSuccess() {
-				mdc.clientConfig.Logger.Debug("dns lookup succeeded", "server", server, "result", fmt.Sprintf("%v", r.Answer))
-				response.Resolver = server
-				return response, err
-			}
+		if response != nil && response.IsSuccess() {
+			mdc.clientConfig.Logger.Debug("dns lookup succeeded", "server", server, "result", fmt.Sprintf("%v", r.Answer))
+			response.Resolver = server
+			return response, err
 		}
 	}
 
