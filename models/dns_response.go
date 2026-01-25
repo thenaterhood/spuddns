@@ -3,11 +3,13 @@ package models
 import (
 	"bytes"
 	"cmp"
+	"errors"
 	"fmt"
 	"net"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/miekg/dns"
@@ -36,6 +38,18 @@ type DnsResponse struct {
 	FromCache          bool
 	Resolver           string
 	RecursionAvailable bool
+	err                error
+}
+
+func NewDnsResponseFromMsgAndErr(msg *dns.Msg, err error) (*DnsResponse, error) {
+	resp, validationErr := NewDnsResponseFromMsg(msg)
+
+	if validationErr != nil {
+		return nil, err
+	}
+
+	resp.err = err
+	return resp, nil
 }
 
 func NewDnsResponseFromMsg(msg *dns.Msg) (*DnsResponse, error) {
@@ -111,6 +125,20 @@ func NewNoErrorDnsResponse() *DnsResponse {
 	return &DnsResponse{
 		msg: msg,
 	}
+}
+
+func (d *DnsResponse) IsTruncated() bool {
+	if d.msg != nil && d.msg.Truncated {
+		return true
+	}
+
+	if d.err != nil {
+		if errors.Is(d.err, syscall.EMSGSIZE) || errors.Is(d.err, syscall.ENOBUFS) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (d *DnsResponse) InsertAnswer(answer DNSAnswer) error {
@@ -211,7 +239,7 @@ func (d DnsResponse) IsEmpty() bool {
 }
 
 func (d DnsResponse) IsSuccess() bool {
-	if d.msg == nil {
+	if d.msg == nil || d.err != nil {
 		return false
 	}
 	return d.msg.Rcode == dns.RcodeSuccess
