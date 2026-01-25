@@ -32,26 +32,24 @@ func (m MalformedRR) Error() string {
 	return fmt.Sprintf("RR type '%d' with data '%s' is malformed", m.Code, m.Msg)
 }
 
-func IsOversizedResponse(dnsResponse *dns.Msg, err error) bool {
-	if dnsResponse != nil && dnsResponse.Truncated {
-		return true
-	}
-
-	if err != nil {
-		if errors.Is(err, syscall.EMSGSIZE) || errors.Is(err, syscall.ENOBUFS) {
-			return true
-		}
-	}
-
-	return false
-}
-
 type DnsResponse struct {
 	msg                *dns.Msg // this can't be json marshalled
 	Expires            time.Time
 	FromCache          bool
 	Resolver           string
 	RecursionAvailable bool
+	err                error
+}
+
+func NewDnsResponseFromMsgAndErr(msg *dns.Msg, err error) (*DnsResponse, error) {
+	resp, validationErr := NewDnsResponseFromMsg(msg)
+
+	if validationErr != nil {
+		return nil, err
+	}
+
+	resp.err = err
+	return resp, nil
 }
 
 func NewDnsResponseFromMsg(msg *dns.Msg) (*DnsResponse, error) {
@@ -127,6 +125,20 @@ func NewNoErrorDnsResponse() *DnsResponse {
 	return &DnsResponse{
 		msg: msg,
 	}
+}
+
+func (d *DnsResponse) IsTruncated() bool {
+	if d.msg != nil && d.msg.Truncated {
+		return true
+	}
+
+	if d.err != nil {
+		if errors.Is(d.err, syscall.EMSGSIZE) || errors.Is(d.err, syscall.ENOBUFS) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (d *DnsResponse) InsertAnswer(answer DNSAnswer) error {
@@ -227,7 +239,7 @@ func (d DnsResponse) IsEmpty() bool {
 }
 
 func (d DnsResponse) IsSuccess() bool {
-	if d.msg == nil {
+	if d.msg == nil || d.err != nil {
 		return false
 	}
 	return d.msg.Rcode == dns.RcodeSuccess
