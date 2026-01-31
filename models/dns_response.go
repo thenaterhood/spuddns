@@ -5,9 +5,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
-	"net"
 	"slices"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -357,106 +355,69 @@ type DNSAnswer struct {
 }
 
 func NewDnsAnswerFromRR(answer dns.RR) (*DNSAnswer, error) {
+	hdr := answer.Header()
 	dnsAnswer := DNSAnswer{
-		Name: answer.Header().Name,
-		Type: answer.Header().Rrtype,
-		TTL:  time.Duration(answer.Header().Ttl) * time.Second,
+		Name: hdr.Name,
+		Type: hdr.Rrtype,
+		TTL:  time.Duration(hdr.Ttl) * time.Second,
 	}
 
-	switch rr := answer.(type) {
-	case *dns.A:
-		dnsAnswer.Data = rr.A.String()
-	case *dns.AAAA:
-		dnsAnswer.Data = rr.AAAA.String()
-	case *dns.CNAME:
-		dnsAnswer.Data = rr.Target
-	case *dns.MX:
-		dnsAnswer.Data = fmt.Sprintf("%d %s", rr.Preference, rr.Mx)
-	case *dns.TXT:
-		dnsAnswer.Data = strings.Join(rr.Txt, " ")
-	case *dns.NS:
-		dnsAnswer.Data = rr.Ns
-	case *dns.HTTPS:
-		dnsAnswer.Data = rr.Target
-	case *dns.PTR:
-		dnsAnswer.Data = rr.Ptr
-	default:
-		return nil, UnsupportedRR{answer.Header().Rrtype}
+	rrText := answer.String()
+	typeName, ok := dns.TypeToString[hdr.Rrtype]
+	if typeName == "" || !ok {
+		typeName = fmt.Sprintf("TYPE%d", hdr.Rrtype)
+	}
+	prefix := fmt.Sprintf("%s %d IN %s", hdr.Name, hdr.Ttl, typeName)
+
+	if strings.HasPrefix(rrText, prefix) {
+		data := strings.TrimSpace(rrText[len(prefix):])
+		dnsAnswer.Data = data
+		return &dnsAnswer, nil
 	}
 
-	return &dnsAnswer, nil
+	// search for RFC3597 marker "\#" or "#" anywhere in the text
+	fields := strings.Fields(rrText)
+	for i, f := range fields {
+		if f == "\\#" || f == "#" {
+			dnsAnswer.Data = strings.Join(fields[i:], " ")
+			return &dnsAnswer, nil
+		}
+	}
+
+	// handles some non-canonical string forms.
+	parts := strings.Fields(rrText)
+	if len(parts) >= 5 {
+		dnsAnswer.Data = strings.Join(parts[4:], " ")
+		return &dnsAnswer, nil
+	}
+
+	return nil, UnsupportedRR{hdr.Rrtype}
 }
 
-// Translation function to convert a DNSANswer to a
-// dns.RR for a message
 func (answer DNSAnswer) ToRR() (dns.RR, error) {
-	// Create the basic header
-	hdr := dns.RR_Header{
-		Name:   answer.Name,
-		Rrtype: answer.Type,
-		Class:  dns.ClassINET,
-		Ttl:    uint32(answer.TTL.Seconds()),
+	if answer.Name == "" {
+		return nil, MalformedRR{answer.Type, "empty name"}
 	}
 
-	switch answer.Type {
-	case dns.TypeA:
-		rr := new(dns.A)
-		rr.Hdr = hdr
-		rr.A = net.ParseIP(answer.Data)
-		return rr, nil
-
-	case dns.TypeAAAA:
-		rr := new(dns.AAAA)
-		rr.Hdr = hdr
-		rr.AAAA = net.ParseIP(answer.Data)
-		return rr, nil
-
-	case dns.TypeCNAME:
-		rr := new(dns.CNAME)
-		rr.Hdr = hdr
-		rr.Target = answer.Data
-		return rr, nil
-
-	case dns.TypeMX:
-		rr := new(dns.MX)
-		rr.Hdr = hdr
-		parts := strings.SplitN(answer.Data, " ", 2)
-		if len(parts) != 2 {
-			return nil, MalformedRR{answer.Type, "invalid MX data format"}
-		}
-		preference, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return nil, MalformedRR{answer.Type, fmt.Sprintf("invalid MX preference: %v", err)}
-		}
-		rr.Preference = uint16(preference)
-		rr.Mx = parts[1]
-		return rr, nil
-
-	case dns.TypeTXT:
-		rr := new(dns.TXT)
-		rr.Hdr = hdr
-		rr.Txt = strings.Split(answer.Data, " ")
-		return rr, nil
-
-	case dns.TypeNS:
-		rr := new(dns.NS)
-		rr.Hdr = hdr
-		rr.Ns = answer.Data
-		return rr, nil
-
-	case dns.TypeHTTPS:
-		rr := new(dns.HTTPS)
-		rr.Hdr = hdr
-		rr.Target = answer.Data
-		return rr, nil
-
-	case dns.TypePTR:
-		rr := new(dns.PTR)
-		rr.Hdr = hdr
-		rr.Ptr = answer.Data
-		return rr, nil
-
-	default:
-		return nil, UnsupportedRR{answer.Type}
+	data := strings.TrimSpace(answer.Data)
+	if data == "" {
+		return nil, MalformedRR{answer.Type, "empty rdata"}
 	}
+
+	ttl := int(answer.TTL.Seconds())
+
+	typeName, ok := dns.TypeToString[answer.Type]
+	if ok {
+		rr, err := dns.NewRR(fmt.Sprintf("%s %d IN %s %s", answer.Name, ttl, typeName, data))
+		if err == nil {
+			return rr, nil
+		}
+	}
+
+	rr, err := dns.NewRR(fmt.Sprintf("%s %d IN TYPE%d %s", answer.Name, ttl, answer.Type, data))
+	if err == nil {
+		return rr, nil
+	}
+
+	return nil, MalformedRR{answer.Type, fmt.Sprintf("failed to construct RR from data: %v", err)}
 }
