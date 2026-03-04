@@ -107,36 +107,26 @@ func NewDnsResponseFromDnsAnswers(answers []DNSAnswer) (*DnsResponse, error) {
 	return NewDnsResponseFromMsg(msg)
 }
 
-func NewServFailDnsResponse() *DnsResponse {
+func NewDnsResponseWithRcode(rcode int) *DnsResponse {
 	msg := new(dns.Msg)
-	msg.Rcode = dns.RcodeServerFailure
-	return &DnsResponse{
-		msg: msg,
-	}
+	msg.Rcode = rcode
+	return &DnsResponse{msg: msg}
+}
+
+func NewServFailDnsResponse() *DnsResponse {
+	return NewDnsResponseWithRcode(dns.RcodeServerFailure)
 }
 
 func NewNXDomainDnsResponse() *DnsResponse {
-	msg := new(dns.Msg)
-	msg.Rcode = dns.RcodeNameError
-	return &DnsResponse{
-		msg: msg,
-	}
+	return NewDnsResponseWithRcode(dns.RcodeNameError)
 }
 
 func NewRefusedDnsResponse() *DnsResponse {
-	msg := new(dns.Msg)
-	msg.Rcode = dns.RcodeRefused
-	return &DnsResponse{
-		msg: msg,
-	}
+	return NewDnsResponseWithRcode(dns.RcodeRefused)
 }
 
 func NewNoErrorDnsResponse() *DnsResponse {
-	msg := new(dns.Msg)
-	msg.Rcode = dns.RcodeSuccess
-	return &DnsResponse{
-		msg: msg,
-	}
+	return NewDnsResponseWithRcode(dns.RcodeSuccess)
 }
 
 func (d *DnsResponse) IsTruncated() bool {
