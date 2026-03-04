@@ -89,7 +89,7 @@ func (appState *AppState) ResolveQueryOnly(query models.DnsQuery, appConfig *App
 			if len(resolverConfig.Servers) > 0 {
 				answer.Resolver = resolverConfig.Servers[0]
 			}
-			return &models.DnsExchange{Response: *models.NewServFailDnsResponse(), Question: *modifiedQuery.FirstQuestion()}, nil
+			return &models.DnsExchange{Response: *answer, Question: *modifiedQuery.FirstQuestion()}, nil
 		}
 	}
 
