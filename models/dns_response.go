@@ -50,6 +50,18 @@ type DnsResponse struct {
 	FromCache          bool
 	Resolver           string
 	RecursionAvailable bool
+	err                error
+}
+
+func NewDnsResponseFromMsgAndErr(msg *dns.Msg, err error) (*DnsResponse, error) {
+	resp, validationErr := NewDnsResponseFromMsg(msg)
+
+	if validationErr != nil {
+		return nil, err
+	}
+
+	resp.err = err
+	return resp, nil
 }
 
 func NewDnsResponseFromMsg(msg *dns.Msg) (*DnsResponse, error) {
@@ -125,6 +137,20 @@ func NewNoErrorDnsResponse() *DnsResponse {
 	return &DnsResponse{
 		msg: msg,
 	}
+}
+
+func (d *DnsResponse) IsTruncated() bool {
+	if d.msg != nil && d.msg.Truncated {
+		return true
+	}
+
+	if d.err != nil {
+		if errors.Is(d.err, syscall.EMSGSIZE) || errors.Is(d.err, syscall.ENOBUFS) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (d *DnsResponse) InsertAnswer(answer DNSAnswer) error {

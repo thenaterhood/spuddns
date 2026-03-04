@@ -24,7 +24,8 @@ func (mdc miekgDnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, erro
 	m := q.PreparedMsg()
 
 	var r *dns.Msg
-	var err error
+	var lastErr error
+	var lastResponse *models.DnsResponse
 
 	servers := mdc.clientConfig.Servers
 
@@ -50,31 +51,35 @@ func (mdc miekgDnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, erro
 			addr = net.JoinHostPort(server, "53")
 		}
 
-		r, _, err = udpClient.Exchange(m, addr)
+		r, _, lastErr = udpClient.Exchange(m, addr)
 
-		if models.IsOversizedResponse(r, err) {
-			mdc.clientConfig.Logger.Debug("oversized dns exchange; retrying over tcp", "server", server, "err", err)
-			r, _, err = tcpClient.Exchange(m, addr)
-			if err != nil {
-				mdc.clientConfig.Logger.Warn("tcp retry after truncated udp response failed - will try next resolver", "server", server, "error", err)
-				continue
-			}
+		response, err := models.NewDnsResponseFromMsgAndErr(r, lastErr)
 
+		if response != nil && response.IsTruncated() {
+			mdc.clientConfig.Logger.Debug("oversized dns exchange; retrying over tcp", "server", server, "err", lastErr)
+			r, _, lastErr = tcpClient.Exchange(m, addr)
+			response, err = models.NewDnsResponseFromMsgAndErr(r, lastErr)
 		}
 
-		if r != nil {
+		if response != nil && response.IsSuccess() {
 			mdc.clientConfig.Logger.Debug("dns lookup succeeded", "server", server, "result", fmt.Sprintf("%v", r.Answer))
-			response, err := models.NewDnsResponseFromMsg(r)
-			if response != nil {
-				response.Resolver = server
-			}
-
+			response.Resolver = server
 			return response, err
+		}
+
+		// Store the last response in case we need to fall back
+		if response != nil {
+			lastResponse = response
 		}
 	}
 
-	if err != nil {
-		return nil, err
+	// Return the last response if we have one, even if it's not a success
+	if lastResponse != nil {
+		return lastResponse, lastErr
+	}
+
+	if lastErr != nil {
+		return nil, lastErr
 	}
 
 	return models.NewDnsResponseFromMsg(r)
