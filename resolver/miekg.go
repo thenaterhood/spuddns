@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"fmt"
 	"net"
 	"time"
 
@@ -13,67 +12,47 @@ type miekgDnsClient struct {
 	clientConfig DnsResolverConfig
 }
 
-func (mdc miekgDnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
-	if q.IsMdns() && !mdc.clientConfig.Mdns.Forward {
-		return nil, nil
-	}
-	mdc.clientConfig.Logger.Debug("attempting to resolve query with standard dns")
-	timer := mdc.clientConfig.Metrics.GetForwardTimer()
-	defer mdc.clientConfig.Metrics.ObserveTimer(timer)
+func NewMiekgDnsClient(config DnsResolverConfig) models.DnsQueryClient {
+	inner := &miekgDnsClient{clientConfig: config}
+	// Apply middlewares: metrics, mDNS filter, TTL
+	return compose(
+		inner,
+		withMetrics(config),
+		withMdnsFilter(config),
+		withMinimumTtl(config),
+	)
+}
 
+func (mdc *miekgDnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 	m := q.PreparedMsg()
+	udpClient := newDnsClient("udp")
+	tcpClient := newDnsClient("tcp")
 
-	var r *dns.Msg
-	var lastErr error
 	var lastResponse *models.DnsResponse
+	var lastErr error
 
-	servers := mdc.clientConfig.Servers
+	for _, server := range mdc.clientConfig.Servers {
+		addr := formatAddr(server)
 
-	udpClient := &dns.Client{
-		Net:          "udp",
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-	}
+		// Try UDP
+		r, _, err := udpClient.Exchange(m, addr)
+		lastResponse, lastErr = models.NewDnsResponseFromMsgAndErr(r, err)
 
-	tcpClient := &dns.Client{
-		Net:          "tcp",
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-	}
-
-	for _, server := range servers {
-
-		addr := server
-		if _, _, perr := net.SplitHostPort(server); perr != nil {
-			// server did not include a port, default to 53
-			addr = net.JoinHostPort(server, "53")
+		// Retry with TCP if truncated
+		if lastResponse != nil && lastResponse.IsTruncated() {
+			mdc.clientConfig.Logger.Debug("response truncated, retrying with TCP", "server", server)
+			r, _, err = tcpClient.Exchange(m, addr)
+			lastResponse, lastErr = models.NewDnsResponseFromMsgAndErr(r, err)
 		}
 
-		r, _, lastErr = udpClient.Exchange(m, addr)
-
-		response, err := models.NewDnsResponseFromMsgAndErr(r, lastErr)
-
-		if response != nil && response.IsTruncated() {
-			mdc.clientConfig.Logger.Debug("oversized dns exchange; retrying over tcp", "server", server, "err", lastErr)
-			r, _, lastErr = tcpClient.Exchange(m, addr)
-			response, err = models.NewDnsResponseFromMsgAndErr(r, lastErr)
-		}
-
-		if response != nil && response.IsSuccess() {
-			mdc.clientConfig.Logger.Debug("dns lookup succeeded", "server", server, "result", fmt.Sprintf("%v", r.Answer))
-			response.Resolver = server
-			return response, err
-		}
-
-		// Store the last response in case we need to fall back
-		if response != nil {
-			lastResponse = response
+		// Return on success
+		if lastResponse != nil && lastResponse.IsSuccess() {
+			lastResponse.Resolver = server
+			return lastResponse, lastErr
 		}
 	}
 
-	// Return the last response if we have one, even if it's not a success
+	// Return last response instead of potentially nil
 	if lastResponse != nil {
 		return lastResponse, lastErr
 	}
@@ -82,5 +61,21 @@ func (mdc miekgDnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, erro
 		return nil, lastErr
 	}
 
-	return models.NewDnsResponseFromMsg(r)
+	return models.NewDnsResponseFromMsg(nil)
+}
+
+func newDnsClient(network string) *dns.Client {
+	return &dns.Client{
+		Net:          network,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	}
+}
+
+func formatAddr(server string) string {
+	if _, _, err := net.SplitHostPort(server); err != nil {
+		return net.JoinHostPort(server, "53")
+	}
+	return server
 }

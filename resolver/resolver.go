@@ -41,7 +41,6 @@ type multiClient struct {
 }
 
 func (mc *multiClient) QueryDns(query models.DnsQuery) (*models.DnsResponse, error) {
-
 	for _, c := range mc.clients {
 		response, err := c.QueryDns(query)
 
@@ -49,13 +48,11 @@ func (mc *multiClient) QueryDns(query models.DnsQuery) (*models.DnsResponse, err
 			continue
 		}
 
-		if response != nil {
-			if response.IsSuccess() {
-				if !response.FromCache && response.GetTtl() < time.Duration(mc.config.ForceMimimumTtl)*time.Second {
-					response.SetTtl(time.Duration(mc.config.ForceMimimumTtl) * time.Second)
-				}
-				return response, nil
+		if response != nil && response.IsSuccess() {
+			if !response.FromCache && response.GetTtl() < time.Duration(mc.config.ForceMimimumTtl)*time.Second {
+				response.SetTtl(time.Duration(mc.config.ForceMimimumTtl) * time.Second)
 			}
+			return response, nil
 		}
 	}
 
@@ -67,14 +64,12 @@ func GetDnsResolver(clientConfig DnsResolverConfig) models.DnsQueryClient {
 		clientConfig.Timeout = 2
 	}
 
-	staticDnsClient := staticClient{clientConfig}
-
-	clients := []models.DnsQueryClient{
-		staticDnsClient,
-	}
-
 	if clientConfig.Mdns == nil {
 		clientConfig.Mdns = NewDefaultMdnsConfig()
+	}
+
+	clients := []models.DnsQueryClient{
+		&staticClient{clientConfig},
 	}
 
 	if clientConfig.Cache != nil {
@@ -82,7 +77,7 @@ func GetDnsResolver(clientConfig DnsResolverConfig) models.DnsQueryClient {
 	}
 
 	if clientConfig.Mdns.Enable {
-		clients = append(clients, mdnsClient{clientConfig})
+		clients = append(clients, NewMdnsClient(clientConfig))
 	}
 
 	for _, resolver := range clientConfig.Servers {
@@ -90,14 +85,10 @@ func GetDnsResolver(clientConfig DnsResolverConfig) models.DnsQueryClient {
 
 		if ip := net.ParseIP(resolver); ip != nil {
 			config.Servers = []string{resolver}
-			clients = append(clients, miekgDnsClient{
-				config,
-			})
+			clients = append(clients, NewMiekgDnsClient(config))
 		} else if _, err := url.Parse(resolver); err == nil {
 			config.Servers = []string{resolver}
-			clients = append(clients, httpsClient{
-				config,
-			})
+			clients = append(clients, NewHttpsClient(config))
 		}
 	}
 

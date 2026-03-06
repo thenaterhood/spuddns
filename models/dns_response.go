@@ -129,6 +129,10 @@ func NewNoErrorDnsResponse() *DnsResponse {
 	return NewDnsResponseWithRcode(dns.RcodeSuccess)
 }
 
+func (d *DnsResponse) Rcode() int {
+	return d.msg.Rcode
+}
+
 func (d *DnsResponse) IsTruncated() bool {
 	if d.msg != nil && d.msg.Truncated {
 		return true
