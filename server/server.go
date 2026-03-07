@@ -160,12 +160,16 @@ func (ds *DnsServer) Stop() error {
 	if ds.standard_dns_server != nil {
 		if err := ds.standard_dns_server.Shutdown(); err != nil {
 			ds.appState.Log.Warn("error stopping dns", "err", err)
+		} else {
+			ds.appState.Log.Info("stopped dns")
 		}
 	}
 
 	if ds.dns_over_tls_server != nil && ds.appConfig.DnsOverTlsEnable {
 		if err := ds.dns_over_tls_server.Shutdown(); err != nil {
 			ds.appState.Log.Warn("error stopping dns over tls", "err", err)
+		} else {
+			ds.appState.Log.Info("stopped dns over tls")
 		}
 	}
 
@@ -174,6 +178,8 @@ func (ds *DnsServer) Stop() error {
 		defer cancel()
 		if err := ds.dns_over_http_server.Shutdown(ctx); err != nil {
 			ds.appState.Log.Warn("error stopping doh", "err", err)
+		} else {
+			ds.appState.Log.Info("stopped doh")
 		}
 	}
 
@@ -217,7 +223,6 @@ func (ds *DnsServer) Start() error {
 		ds.appState.Log.Info("starting DNS server", "port", ds.appConfig.DnsServerPort)
 		close(dns_ready)
 		err := ds.standard_dns_server.ListenAndServe()
-		defer ds.standard_dns_server.Shutdown()
 		if err != nil {
 			ds.appState.Log.Error("failed to start server", "error", err.Error())
 		}

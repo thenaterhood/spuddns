@@ -26,7 +26,7 @@ func dropPrivileges(uid, gid int) error {
 
 func main() {
 	ctx, stop := signal.NotifyContext(
-		context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer stop()
 	conffile := "./spuddns.json"
 	args := os.Args
