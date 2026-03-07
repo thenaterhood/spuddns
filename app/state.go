@@ -96,14 +96,15 @@ func (appState *AppState) ResolveQueryOnly(query models.DnsQuery, appConfig *App
 
 		forwarder := resolver.GetDnsResolver(*resolverConfig)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
 		answer, err = modifiedQuery.ResolveWith(forwarder, ctx)
 
 		if answer != nil && answer.IsSuccess() {
+			cancel()
 			return &models.DnsExchange{Response: *answer, Question: *modifiedQuery.FirstQuestion()}, nil
 		}
 
 		if err != nil {
+			cancel()
 			return &models.DnsExchange{Response: *models.NewServFailDnsResponse(), Question: *modifiedQuery.FirstQuestion()}, err
 		}
 
@@ -114,8 +115,10 @@ func (appState *AppState) ResolveQueryOnly(query models.DnsQuery, appConfig *App
 			if len(resolverConfig.Servers) > 0 {
 				answer.Resolver = resolverConfig.Servers[0]
 			}
+			cancel()
 			return &models.DnsExchange{Response: *answer, Question: *modifiedQuery.FirstQuestion()}, nil
 		}
+		cancel()
 	}
 
 	answer = models.NewNXDomainDnsResponse()
