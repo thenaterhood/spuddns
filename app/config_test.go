@@ -73,8 +73,8 @@ func TestIsCacheableDnsQueryBadDataDoesNotCrash(t *testing.T) {
 			},
 		},
 	)
-	if err != nil {
-		t.Fatalf("unexpected error getting hardcoded dns response: %v", err)
+	if err == nil {
+		t.Fatalf("expected error getting hardcoded dns response, got nil")
 	}
 
 	cacheable := appConfig.IsCacheable(q, dnsResponse)

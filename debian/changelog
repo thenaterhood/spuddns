@@ -1,3 +1,18 @@
+spuddns (0.6.0-1) unstable; urgency=low
+
+  * Remove limitation on DNS record types
+  * Fix incorrect DNS failure response when name exists but has no records
+  * Improve truncation handling
+  * Reduce code duplication
+
+ -- Nate Levesque <public@thenaterhood.com>  Fri, 06 Mar 2026 20:07:44 -0400
+
+spuddns (0.5.0-1) unstable; urgency=low
+
+  * Handle oversized/truncated DNS responses
+
+ -- Nate Levesque <public@thenaterhood.com>  Sun, 25 Jan 2026 20:07:44 -0400
+
 spuddns (0.4.0-1) unstable; urgency=low
 
   * Fix non-A record problems

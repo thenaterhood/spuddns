@@ -13,12 +13,18 @@ type mdnsClient struct {
 	clientConfig DnsResolverConfig
 }
 
-func (c mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
+func NewMdnsClient(config DnsResolverConfig) models.DnsQueryClient {
+	inner := &mdnsClient{clientConfig: config}
+	return compose(
+		inner,
+		withMetrics(config),
+	)
+}
+
+func (c *mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 	if !q.IsMdns() {
 		return nil, nil
 	}
-
-	c.clientConfig.Logger.Debug("attemping to resolve query with mDNS", "qname", q.FirstQuestion().Name)
 
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 	if err != nil {
@@ -47,7 +53,6 @@ func (c mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 		return nil, err
 	}
 
-	// Collect responses
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -71,7 +76,7 @@ func (c mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 
 			c.clientConfig.Logger.Debug("received mDNS data from", "addr", from)
 
-			response, err := parseResponse(buffer[:n], q)
+			response, err := parseMdnsResponse(buffer[:n], q)
 			if err != nil {
 				c.clientConfig.Logger.Warn("error parsing mDNS response", "error", err)
 				return models.NewServFailDnsResponse(), err
@@ -88,7 +93,7 @@ func (c mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 	}
 }
 
-func parseResponse(data []byte, query models.DnsQuery) (*models.DnsResponse, error) {
+func parseMdnsResponse(data []byte, query models.DnsQuery) (*models.DnsResponse, error) {
 	var msg dns.Msg
 	if err := msg.Unpack(data); err != nil {
 		return nil, err
