@@ -10,11 +10,11 @@ import (
 )
 
 type mdnsClient struct {
-	clientConfig DnsResolverConfig
+	clientConfig BaseResolverConfig
 	conn         *net.UDPConn
 }
 
-func NewMdnsClient(config DnsResolverConfig) models.DnsQueryClient {
+func NewMdnsClient(config BaseResolverConfig) models.DnsQueryClient {
 	inner := &mdnsClient{clientConfig: config}
 	return compose(
 		inner,

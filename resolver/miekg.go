@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"log/slog"
 	"net"
 	"time"
 
@@ -9,16 +10,18 @@ import (
 )
 
 type miekgDnsClient struct {
-	clientConfig DnsResolverConfig
+	clientConfig BaseResolverConfig
 	udpClient    dns.Client
 	tcpClient    dns.Client
+	logger       *slog.Logger
 }
 
-func NewMiekgDnsClient(config DnsResolverConfig) models.DnsQueryClient {
+func NewMiekgDnsClient(config BaseResolverConfig) models.DnsQueryClient {
 	inner := &miekgDnsClient{
 		clientConfig: config,
 		udpClient:    *newDnsClient("udp"),
 		tcpClient:    *newDnsClient("tcp"),
+		logger:       config.Logger,
 	}
 	// Apply middlewares: metrics, mDNS filter, TTL
 	return compose(
@@ -35,25 +38,23 @@ func (mdc *miekgDnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, err
 	var lastResponse *models.DnsResponse
 	var lastErr error
 
-	for _, server := range mdc.clientConfig.Servers {
-		addr := formatAddr(server)
+	addr := formatAddr(mdc.clientConfig.Server)
 
-		// Try UDP
-		r, _, err := mdc.udpClient.Exchange(m, addr)
+	// Try UDP
+	r, _, err := mdc.udpClient.Exchange(m, addr)
+	lastResponse, lastErr = models.NewDnsResponseFromMsgAndErr(r, err)
+
+	// Retry with TCP if truncated
+	if lastResponse != nil && lastResponse.IsTruncated() {
+		mdc.logger.Debug("response truncated, retrying with TCP", "server", mdc.clientConfig.Server)
+		r, _, err = mdc.tcpClient.Exchange(m, addr)
 		lastResponse, lastErr = models.NewDnsResponseFromMsgAndErr(r, err)
+	}
 
-		// Retry with TCP if truncated
-		if lastResponse != nil && lastResponse.IsTruncated() {
-			mdc.clientConfig.Logger.Debug("response truncated, retrying with TCP", "server", server)
-			r, _, err = mdc.tcpClient.Exchange(m, addr)
-			lastResponse, lastErr = models.NewDnsResponseFromMsgAndErr(r, err)
-		}
-
-		// Return on success
-		if lastResponse != nil && lastResponse.IsSuccess() {
-			lastResponse.Resolver = server
-			return lastResponse, lastErr
-		}
+	// Return on success
+	if lastResponse != nil && lastResponse.IsSuccess() {
+		lastResponse.Resolver = mdc.clientConfig.Server
+		return lastResponse, lastErr
 	}
 
 	// Return last response instead of potentially nil

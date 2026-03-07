@@ -216,10 +216,12 @@ func (cfg AppConfig) GetResolverConfig(appState *AppState, qname string, clientI
 		appCache = &cache.DummyCache{}
 	}
 	resolverConfig := resolver.DnsResolverConfig{
-		Servers:          cfg.GetUpstreamResolvers(qname, clientId, clientIp),
-		Metrics:          appState.Metrics,
-		Logger:           appState.Log,
-		ForceMimimumTtl:  cfg.ForceMinimumTtl,
+		Servers: cfg.GetUpstreamResolvers(qname, clientId, clientIp),
+		BaseResolverConfig: resolver.BaseResolverConfig{
+			Metrics:         appState.Metrics,
+			Logger:          appState.Log,
+			ForceMimimumTtl: cfg.ForceMinimumTtl,
+		},
 		Cache:            appCache,
 		DefaultForwarder: appState.DefaultForwarder,
 		Mdns: &resolver.MdnsConfig{

@@ -10,7 +10,7 @@ import (
 type Middleware func(models.DnsQueryClient) models.DnsQueryClient
 
 // add metrics timing
-func withMetrics(config DnsResolverConfig) Middleware {
+func withMetrics(config BaseResolverConfig) Middleware {
 	return func(inner models.DnsQueryClient) models.DnsQueryClient {
 		return &metricsWrapper{inner: inner, config: config}
 	}
@@ -18,7 +18,7 @@ func withMetrics(config DnsResolverConfig) Middleware {
 
 type metricsWrapper struct {
 	inner  models.DnsQueryClient
-	config DnsResolverConfig
+	config BaseResolverConfig
 }
 
 func (w *metricsWrapper) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
@@ -28,7 +28,7 @@ func (w *metricsWrapper) QueryDns(q models.DnsQuery) (*models.DnsResponse, error
 }
 
 // skip mDNS queries if forwarding is disabled
-func withMdnsFilter(config DnsResolverConfig) Middleware {
+func withMdnsFilter(config BaseResolverConfig) Middleware {
 	return func(inner models.DnsQueryClient) models.DnsQueryClient {
 		return &mdnsFilterWrapper{inner: inner, config: config}
 	}
@@ -36,7 +36,7 @@ func withMdnsFilter(config DnsResolverConfig) Middleware {
 
 type mdnsFilterWrapper struct {
 	inner  models.DnsQueryClient
-	config DnsResolverConfig
+	config BaseResolverConfig
 }
 
 func (w *mdnsFilterWrapper) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
@@ -47,7 +47,7 @@ func (w *mdnsFilterWrapper) QueryDns(q models.DnsQuery) (*models.DnsResponse, er
 }
 
 // enforce minimum TTL on responses
-func withMinimumTtl(config DnsResolverConfig) Middleware {
+func withMinimumTtl(config BaseResolverConfig) Middleware {
 	return func(inner models.DnsQueryClient) models.DnsQueryClient {
 		return &minimumTtlWrapper{inner: inner, minTtl: time.Duration(config.ForceMimimumTtl) * time.Second}
 	}

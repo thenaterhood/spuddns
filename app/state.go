@@ -18,7 +18,6 @@ type AppState struct {
 	DnsPipeline      *chan models.DnsExchange
 	Log              *slog.Logger
 	Metrics          metrics.MetricsInterface
-	resolvers        map[string]models.DnsQueryClient
 }
 
 func NewAppState(log *slog.Logger, config AppConfig) *AppState {
@@ -38,10 +37,9 @@ func NewAppState(log *slog.Logger, config AppConfig) *AppState {
 	}
 
 	state := AppState{
-		Cache:     cache,
-		Log:       log,
-		Metrics:   metrics,
-		resolvers: map[string]models.DnsQueryClient{},
+		Cache:   cache,
+		Log:     log,
+		Metrics: metrics,
 	}
 
 	return &state

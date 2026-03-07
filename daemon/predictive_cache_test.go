@@ -23,7 +23,9 @@ func getAppState(cache cache.Cache) *app.AppState {
 		Metrics: &metrics.DummyMetrics{},
 		Log:     log,
 		DefaultForwarder: resolver.GetDnsResolver(resolver.DnsResolverConfig{
-			Logger:  log,
+			BaseResolverConfig: resolver.BaseResolverConfig{
+				Logger: log,
+			},
 			Servers: []string{},
 			Static: map[string]string{
 				"example.com": "203.0.113.1",

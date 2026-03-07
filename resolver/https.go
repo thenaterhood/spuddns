@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,11 +14,12 @@ import (
 )
 
 type httpsClient struct {
-	clientConfig DnsResolverConfig
+	clientConfig BaseResolverConfig
+	logger       *slog.Logger
 	httpClient   *http.Client
 }
 
-func NewHttpsClient(config DnsResolverConfig) models.DnsQueryClient {
+func NewHttpsClient(config BaseResolverConfig) models.DnsQueryClient {
 	timeout := time.Duration(config.Timeout) * time.Second
 
 	client := &http.Client{
@@ -28,6 +30,7 @@ func NewHttpsClient(config DnsResolverConfig) models.DnsQueryClient {
 	}
 	inner := &httpsClient{
 		clientConfig: config,
+		logger:       config.Logger,
 		httpClient:   client,
 	}
 	// Apply middlewares: metrics, mDNS filter, TTL
@@ -47,10 +50,8 @@ func (c *httpsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 		return nil, err
 	}
 
-	for _, addr := range c.clientConfig.Servers {
-		if response := c.queryServer(addr, packedQuery, q); response != nil {
-			return response, nil
-		}
+	if response := c.queryServer(c.clientConfig.Server, packedQuery, q); response != nil {
+		return response, nil
 	}
 
 	return models.NewNXDomainDnsResponse(), fmt.Errorf("https lookup failed")
@@ -60,14 +61,14 @@ func (c *httpsClient) queryServer(addr string, packedQuery []byte, q models.DnsQ
 	// Validate URL
 	parsedURL, err := url.Parse(addr)
 	if err != nil {
-		c.clientConfig.Logger.Warn("unable to parse dns over https endpoint", "endpoint", addr)
+		c.logger.Warn("unable to parse dns over https endpoint", "endpoint", addr)
 		return nil
 	}
 
 	// Prevent self-resolution
 	if ip := net.ParseIP(parsedURL.Hostname()); ip == nil {
 		if q.FirstQuestion().Name == parsedURL.Hostname()+"." {
-			c.clientConfig.Logger.Warn("not using https resolver to resolve itself", "host", parsedURL.Host)
+			c.logger.Warn("not using https resolver to resolve itself", "host", parsedURL.Host)
 			return nil
 		}
 	}
@@ -75,7 +76,7 @@ func (c *httpsClient) queryServer(addr string, packedQuery []byte, q models.DnsQ
 	// Make request
 	request, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(packedQuery))
 	if err != nil {
-		c.clientConfig.Logger.Warn("failed to create request for http dns", "server", addr, "err", err)
+		c.logger.Warn("failed to create request for http dns", "server", addr, "err", err)
 		return nil
 	}
 	request.Header.Set("Accept", models.ContentTypeDnsMessage)
@@ -83,37 +84,37 @@ func (c *httpsClient) queryServer(addr string, packedQuery []byte, q models.DnsQ
 
 	resp, err := c.httpClient.Do(request)
 	if err != nil {
-		c.clientConfig.Logger.Warn("dns over https request failed", "server", addr, "err", err)
+		c.logger.Warn("dns over https request failed", "server", addr, "err", err)
 		return nil
 	}
 
 	if resp == nil {
-		c.clientConfig.Logger.Warn("dns over https request got no response", "server", addr)
+		c.logger.Warn("dns over https request got no response", "server", addr)
 		return nil
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		c.clientConfig.Logger.Warn("not ok status for dns over https request", "server", addr, "status", resp.StatusCode)
+		c.logger.Warn("not ok status for dns over https request", "server", addr, "status", resp.StatusCode)
 		return nil
 	}
 
 	msg, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.clientConfig.Logger.Warn("failed to read https dns response body", "server", addr, "err", err)
+		c.logger.Warn("failed to read https dns response body", "server", addr, "err", err)
 		return nil
 	}
 
 	dnsResp, err := models.NewDnsResponseFromBytes(msg)
 	if err != nil {
-		c.clientConfig.Logger.Warn("failed to read https dns response", "server", addr, "err", err)
+		c.logger.Warn("failed to read https dns response", "server", addr, "err", err)
 		return nil
 	}
 
 	if dnsResp != nil && dnsResp.IsSuccess() {
 		dnsResp.Resolver = addr
-		c.clientConfig.Logger.Debug("dns over https lookup succeeded", "server", addr)
+		c.logger.Debug("dns over https lookup succeeded", "server", addr)
 	}
 
 	return dnsResp

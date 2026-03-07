@@ -137,10 +137,8 @@ func TestUDPTruncationFallbackToTCP(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 
-	config := DnsResolverConfig{
-		Servers: []string{
-			"127.0.0.1:15353",
-		},
+	config := BaseResolverConfig{
+		Server:          "127.0.0.1:15353",
 		Logger:          getTestLogger(),
 		Metrics:         &metrics.DummyMetrics{},
 		Timeout:         5,
@@ -185,10 +183,8 @@ func TestMiekgClientBasic(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 
-	config := DnsResolverConfig{
-		Servers: []string{
-			"127.0.0.1:15354",
-		},
+	config := BaseResolverConfig{
+		Server:          "127.0.0.1:15354",
 		Logger:          getTestLogger(),
 		Metrics:         &metrics.DummyMetrics{},
 		Timeout:         5,
