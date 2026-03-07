@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"syscall"
 
 	"github.com/thenaterhood/spuddns/app"
@@ -23,6 +25,9 @@ func dropPrivileges(uid, gid int) error {
 }
 
 func main() {
+	ctx, stop := signal.NotifyContext(
+		context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 	conffile := "./spuddns.json"
 	args := os.Args
 
@@ -83,6 +88,7 @@ func main() {
 
 	dnsServer := server.NewDnsServer(*config, state)
 	dnsServer.Start()
+	defer dnsServer.Stop()
 
 	if err := dropPrivileges(65534, 65534); err != nil {
 		state.Log.Warn("failed to drop privileges after initialization", "err", err)
@@ -90,5 +96,5 @@ func main() {
 		state.Log.Debug("successfully dropped privileges after initialization")
 	}
 
-	select {}
+	<-ctx.Done()
 }

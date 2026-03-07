@@ -2,6 +2,7 @@ package server
 
 import (
 	"cmp"
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/miekg/dns"
 	"github.com/thenaterhood/spuddns/app"
@@ -154,6 +156,30 @@ func (ds *DnsServer) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 	w.WriteMsg(models.NewServFailDnsResponse().AsReplyToMsg(r))
 }
 
+func (ds *DnsServer) Stop() error {
+	if ds.standard_dns_server != nil {
+		if err := ds.standard_dns_server.Shutdown(); err != nil {
+			ds.appState.Log.Warn("error stopping dns", "err", err)
+		}
+	}
+
+	if ds.dns_over_tls_server != nil && ds.appConfig.DnsOverTlsEnable {
+		if err := ds.dns_over_tls_server.Shutdown(); err != nil {
+			ds.appState.Log.Warn("error stopping dns over tls", "err", err)
+		}
+	}
+
+	if ds.dns_over_http_server != nil && ds.appConfig.DnsOverHttpEnable {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := ds.dns_over_http_server.Shutdown(ctx); err != nil {
+			ds.appState.Log.Warn("error stopping doh", "err", err)
+		}
+	}
+
+	return nil
+}
+
 func (ds *DnsServer) Start() error {
 
 	tls_ready := make(chan struct{})
@@ -163,7 +189,7 @@ func (ds *DnsServer) Start() error {
 	if ds.dns_over_tls_server != nil {
 		defer ds.dns_over_tls_server.Shutdown()
 		go func() {
-			ds.appState.Log.Info("starting DNS over HTTPS server", "addr", ds.dns_over_tls_server.Addr)
+			ds.appState.Log.Info("starting DNS over TLS server", "addr", ds.dns_over_tls_server.Addr)
 			close(tls_ready)
 			err := ds.dns_over_tls_server.ListenAndServe()
 			if err != nil {
@@ -179,7 +205,7 @@ func (ds *DnsServer) Start() error {
 			ds.appState.Log.Info("start DNS over HTTP server", "addr", ds.dns_over_http_server.Addr)
 			close(http_ready)
 			err := ds.dns_over_http_server.ListenAndServe()
-			if err != nil {
+			if err != nil && err != http.ErrServerClosed {
 				ds.appState.Log.Error("failed to start dns over http server", "error", err.Error())
 			}
 		}()
