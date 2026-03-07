@@ -7,9 +7,7 @@ import (
 	"syscall"
 
 	"github.com/thenaterhood/spuddns/app"
-	"github.com/thenaterhood/spuddns/cache"
 	"github.com/thenaterhood/spuddns/daemon"
-	"github.com/thenaterhood/spuddns/metrics"
 	"github.com/thenaterhood/spuddns/server"
 	"github.com/thenaterhood/spuddns/system"
 )
@@ -45,25 +43,7 @@ func main() {
 		stdoutLogger.Warn("no upstream resolvers are configured!")
 	}
 
-	metrics := metrics.GetMetrics(metrics.MetricsConfig{
-		Enable: !config.DisableMetrics,
-		Logger: stdoutLogger,
-	})
-
-	cache, cacheErr := cache.GetCache(cache.CacheConfig{
-		Logger:  stdoutLogger,
-		Metrics: metrics,
-		Enable:  !config.DisableCache,
-	})
-	if cacheErr != nil {
-		stdoutLogger.Warn("failed to initialize cache - disabling caching", "err", cacheErr)
-	}
-
-	state := app.AppState{
-		Cache:   cache,
-		Log:     stdoutLogger,
-		Metrics: metrics,
-	}
+	state := *app.NewAppState(stdoutLogger, *config)
 
 	if !config.DisableCache {
 		if config.PredictiveCache || config.ResilientCache {

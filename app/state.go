@@ -18,6 +18,33 @@ type AppState struct {
 	DnsPipeline      *chan models.DnsExchange
 	Log              *slog.Logger
 	Metrics          metrics.MetricsInterface
+	resolvers        map[string]models.DnsQueryClient
+}
+
+func NewAppState(log *slog.Logger, config AppConfig) *AppState {
+	metrics := metrics.GetMetrics(metrics.MetricsConfig{
+		Enable: !config.DisableMetrics,
+		Logger: log,
+	})
+
+	cache, cacheErr := cache.GetCache(cache.CacheConfig{
+		Logger:  log,
+		Metrics: metrics,
+		Enable:  !config.DisableCache,
+	})
+
+	if cacheErr != nil {
+		log.Warn("failed to initialize cache - disabling caching", "err", cacheErr)
+	}
+
+	state := AppState{
+		Cache:     cache,
+		Log:       log,
+		Metrics:   metrics,
+		resolvers: map[string]models.DnsQueryClient{},
+	}
+
+	return &state
 }
 
 func (appState *AppState) ResolveQueryOnly(query models.DnsQuery, appConfig *AppConfig) (*models.DnsExchange, error) {

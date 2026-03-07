@@ -127,7 +127,7 @@ func TestRefreshExpiringCacheItem(t *testing.T) {
 	}
 
 	expectedAnswers, _ := answer.Answers()
-	if resp != nil && !resp.IsEmpty() && answers[0].Data != expectedAnswers[0].Data {
+	if !resp.IsEmpty() && answers[0].Data != expectedAnswers[0].Data {
 		t.Errorf("frequently used cache item was not correctly refreshed expected = %v, actual = %v", answer, resp)
 	}
 }
