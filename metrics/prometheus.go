@@ -1,7 +1,9 @@
 package metrics
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -17,6 +19,7 @@ type PrometheusMetrics struct {
 	queryResponseTime           prometheus.HistogramVec
 
 	config MetricsConfig
+	server *http.Server
 }
 
 func (ms PrometheusMetrics) IncQueriesAnswered() {
@@ -61,12 +64,24 @@ func (s PrometheusMetrics) Start() error {
 
 	if s.config.Enable {
 		go func() {
+			s.server.ListenAndServe()
 			s.config.Logger.Info("Starting prometheus metrics", "port", 2112, "endpoint", "/metrics")
-			http.Handle("/metrics", promhttp.Handler())
-			http.ListenAndServe(":2112", nil)
 		}()
 	}
 
+	return nil
+}
+
+func (s PrometheusMetrics) Stop() error {
+	if s.config.Enable && s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.server.Shutdown(ctx); err != nil {
+			s.config.Logger.Warn("error stopping prometheus server", "err", err)
+		} else {
+			s.config.Logger.Info("stopped prometheus server")
+		}
+	}
 	return nil
 }
 
@@ -98,5 +113,9 @@ func newPrometheus(config MetricsConfig) PrometheusMetrics {
 			Help: "The number of queries held in cache due to a resolution failure",
 		}),
 		config: config,
+		server: &http.Server{
+			Addr:    ":2112",
+			Handler: promhttp.Handler(),
+		},
 	}
 }

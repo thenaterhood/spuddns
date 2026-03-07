@@ -82,6 +82,7 @@ func main() {
 	}
 
 	metricsErr := state.Metrics.Start()
+	defer state.Metrics.Stop()
 	if metricsErr != nil {
 		state.Log.Warn("failed to start metrics", "err", metricsErr)
 	}

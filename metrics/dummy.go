@@ -13,4 +13,5 @@ func (ds DummyMetrics) GetCacheReadTimer() *prometheus.Timer { return nil }
 func (ds DummyMetrics) GetForwardTimer() *prometheus.Timer   { return nil }
 func (ds DummyMetrics) GetResponseTimer() *prometheus.Timer  { return nil }
 func (ds DummyMetrics) Start() error                         { return nil }
+func (ds DummyMetrics) Stop() error                          { return nil }
 func (ds DummyMetrics) ObserveTimer(_ *prometheus.Timer)     {}

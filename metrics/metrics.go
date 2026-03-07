@@ -22,6 +22,7 @@ type MetricsInterface interface {
 	GetResponseTimer() *prometheus.Timer
 	ObserveTimer(*prometheus.Timer)
 	Start() error
+	Stop() error
 }
 
 func GetMetrics(config MetricsConfig) MetricsInterface {
