@@ -336,13 +336,8 @@ func (q *DnsQuery) ClearExtra() *DnsQuery {
 
 // Pack this query back into a dns.Msg
 func (q DnsQuery) PreparedMsg() *dns.Msg {
-	m := new(dns.Msg)
-
 	// Assuming these are well-formed at this point
-	packed, _ := q.msg.Pack()
-	m.Unpack(packed)
-
+	m := q.msg.Copy()
 	m.RecursionDesired = true
-
 	return m
 }
