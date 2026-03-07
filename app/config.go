@@ -397,7 +397,8 @@ func getEnvironmentConfig() AppConfig {
 	config.DnsServerPort = getEnvInt("DNS_SERVER_PORT", config.DnsServerPort)
 	config.DnsOverHttpEnable = getEnvBool("DNS_OVER_HTTP_ENABLE", config.DnsOverHttpEnable)
 	config.MdnsEnable = getEnvBool("MDNS_ENABLE", config.MdnsEnable)
-	config.RespectResolveConf = false // assuming docker
+	config.RespectResolveConf = false  // assuming docker
+	config.EnableHealthEndpoint = true // assuming docker
 	config.UpstreamResolvers = getEnvList("UPSTREAM_RESOLVERS", config.UpstreamResolvers)
 	config.ConditionalForwards = getEnvMapList("CONDITIONAL_FORWARDS", config.ConditionalForwards)
 	config.DisableMetrics = getEnvBool("DISABLE_METRICS", config.DisableMetrics)
