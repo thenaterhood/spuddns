@@ -11,6 +11,7 @@ import (
 
 type mdnsClient struct {
 	clientConfig DnsResolverConfig
+	conn         *net.UDPConn
 }
 
 func NewMdnsClient(config DnsResolverConfig) models.DnsQueryClient {
@@ -26,12 +27,14 @@ func (c *mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 		return nil, nil
 	}
 
-	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
-	if err != nil {
-		c.clientConfig.Logger.Warn("failed to listen UDP for mDNS", "error", err)
-		return nil, err
+	if c.conn == nil {
+		conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+		if err != nil {
+			c.clientConfig.Logger.Warn("failed to listen UDP for mDNS", "error", err)
+			return nil, err
+		}
+		c.conn = conn
 	}
-	defer conn.Close()
 
 	timeout := time.Duration(c.clientConfig.Timeout/2) * time.Second
 
@@ -47,7 +50,7 @@ func (c *mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 		return nil, err
 	}
 
-	_, err = conn.WriteToUDP(packed, multicastAddr)
+	_, err = c.conn.WriteToUDP(packed, multicastAddr)
 	if err != nil {
 		c.clientConfig.Logger.Warn("failed to send mDNS request", "error", err)
 		return nil, err
@@ -64,9 +67,9 @@ func (c *mdnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 			return models.NewNXDomainDnsResponse(), nil
 
 		default:
-			conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+			c.conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
-			n, from, err := conn.ReadFromUDP(buffer)
+			n, from, err := c.conn.ReadFromUDP(buffer)
 			if err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 					continue

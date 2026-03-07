@@ -14,10 +14,22 @@ import (
 
 type httpsClient struct {
 	clientConfig DnsResolverConfig
+	httpClient   *http.Client
 }
 
 func NewHttpsClient(config DnsResolverConfig) models.DnsQueryClient {
-	inner := &httpsClient{clientConfig: config}
+	timeout := time.Duration(config.Timeout) * time.Second
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConnsPerHost: 5,
+		},
+		Timeout: timeout,
+	}
+	inner := &httpsClient{
+		clientConfig: config,
+		httpClient:   client,
+	}
 	// Apply middlewares: metrics, mDNS filter, TTL
 	return compose(
 		inner,
@@ -28,9 +40,6 @@ func NewHttpsClient(config DnsResolverConfig) models.DnsQueryClient {
 }
 
 func (c *httpsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
-	timeout := time.Duration(c.clientConfig.Timeout) * time.Second
-
-	httpClient := &http.Client{Timeout: timeout}
 	query := q.PreparedMsg()
 
 	packedQuery, err := query.Pack()
@@ -39,7 +48,7 @@ func (c *httpsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 	}
 
 	for _, addr := range c.clientConfig.Servers {
-		if response := c.queryServer(httpClient, addr, packedQuery, q); response != nil {
+		if response := c.queryServer(addr, packedQuery, q); response != nil {
 			return response, nil
 		}
 	}
@@ -47,7 +56,7 @@ func (c *httpsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 	return models.NewNXDomainDnsResponse(), fmt.Errorf("https lookup failed")
 }
 
-func (c *httpsClient) queryServer(httpClient *http.Client, addr string, packedQuery []byte, q models.DnsQuery) *models.DnsResponse {
+func (c *httpsClient) queryServer(addr string, packedQuery []byte, q models.DnsQuery) *models.DnsResponse {
 	// Validate URL
 	parsedURL, err := url.Parse(addr)
 	if err != nil {
@@ -72,7 +81,7 @@ func (c *httpsClient) queryServer(httpClient *http.Client, addr string, packedQu
 	request.Header.Set("Accept", models.ContentTypeDnsMessage)
 	request.Header.Set("Content-Type", models.ContentTypeDnsMessage)
 
-	resp, err := httpClient.Do(request)
+	resp, err := c.httpClient.Do(request)
 	if err != nil {
 		c.clientConfig.Logger.Warn("dns over https request failed", "server", addr, "err", err)
 		return nil

@@ -10,10 +10,16 @@ import (
 
 type miekgDnsClient struct {
 	clientConfig DnsResolverConfig
+	udpClient    dns.Client
+	tcpClient    dns.Client
 }
 
 func NewMiekgDnsClient(config DnsResolverConfig) models.DnsQueryClient {
-	inner := &miekgDnsClient{clientConfig: config}
+	inner := &miekgDnsClient{
+		clientConfig: config,
+		udpClient:    *newDnsClient("udp"),
+		tcpClient:    *newDnsClient("tcp"),
+	}
 	// Apply middlewares: metrics, mDNS filter, TTL
 	return compose(
 		inner,
@@ -25,8 +31,6 @@ func NewMiekgDnsClient(config DnsResolverConfig) models.DnsQueryClient {
 
 func (mdc *miekgDnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, error) {
 	m := q.PreparedMsg()
-	udpClient := newDnsClient("udp")
-	tcpClient := newDnsClient("tcp")
 
 	var lastResponse *models.DnsResponse
 	var lastErr error
@@ -35,13 +39,13 @@ func (mdc *miekgDnsClient) QueryDns(q models.DnsQuery) (*models.DnsResponse, err
 		addr := formatAddr(server)
 
 		// Try UDP
-		r, _, err := udpClient.Exchange(m, addr)
+		r, _, err := mdc.udpClient.Exchange(m, addr)
 		lastResponse, lastErr = models.NewDnsResponseFromMsgAndErr(r, err)
 
 		// Retry with TCP if truncated
 		if lastResponse != nil && lastResponse.IsTruncated() {
 			mdc.clientConfig.Logger.Debug("response truncated, retrying with TCP", "server", server)
-			r, _, err = tcpClient.Exchange(m, addr)
+			r, _, err = mdc.tcpClient.Exchange(m, addr)
 			lastResponse, lastErr = models.NewDnsResponseFromMsgAndErr(r, err)
 		}
 
