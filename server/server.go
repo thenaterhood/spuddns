@@ -26,6 +26,12 @@ type DnsServer struct {
 
 // Handle a DNS over HTTP(S) request
 func (ds DnsServer) handleDnsOverHTTP(w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			http.Error(w, "Server error", http.StatusInternalServerError)
+			ds.appState.Log.Error("panic handling doh request", rec)
+		}
+	}()
 	responseTimer := ds.appState.Metrics.GetResponseTimer()
 	defer ds.appState.Metrics.ObserveTimer(responseTimer)
 	var msg []byte
@@ -109,6 +115,12 @@ func (ds DnsServer) handleDnsOverHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Handle a standard DNS request
 func (ds *DnsServer) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			w.WriteMsg(models.NewServFailDnsResponse().AsReplyToMsg(r))
+			ds.appState.Log.Error("panic handling dns request", rec)
+		}
+	}()
 	responseTimer := ds.appState.Metrics.GetResponseTimer()
 	defer ds.appState.Metrics.ObserveTimer(responseTimer)
 	ds.appState.Log.Debug("got dns request", "msg", r)
