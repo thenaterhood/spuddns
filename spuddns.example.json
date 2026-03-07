@@ -20,6 +20,7 @@
     "predictive_cache": true,
     "resilient_cache": true,
     "persistent_cache_file": "",
+    "enable_health_endpoint": true,
     "shared_secret": "",
     "mdns_enable": true,
     "upstream_resolvers": [

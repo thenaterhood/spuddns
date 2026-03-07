@@ -26,6 +26,50 @@ type DnsServer struct {
 	dns_over_http_server *http.Server
 }
 
+func (ds DnsServer) handleHealthHTTP(w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			http.Error(w, "Server error", http.StatusInternalServerError)
+			ds.appState.Log.Error("panic handling health request", rec)
+		}
+	}()
+
+	question := dns.Question{
+		Name:   "google.com.",
+		Qtype:  1,
+		Qclass: 1,
+	}
+
+	q, err := models.NewDnsQueryFromQuestions([]dns.Question{question})
+	if err != nil {
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		ds.appState.Log.Error("error handling health check", "err", err)
+		return
+	}
+
+	resp, err := ds.appState.ResolveQueryOnly(*q, ds.appConfig)
+	if err != nil {
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		ds.appState.Log.Error("error handling health check - test resolve failed", "err", err)
+		return
+	}
+
+	if resp == nil {
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		ds.appState.Log.Error("error handling health check - no dns response from upstream")
+		return
+	}
+
+	if !resp.Response.IsSuccess() {
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		ds.appState.Log.Error("error handling health check - test query failed")
+		return
+	}
+
+	http.Error(w, "OK", http.StatusOK)
+
+}
+
 // Handle a DNS over HTTP(S) request
 func (ds DnsServer) handleDnsOverHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
@@ -270,6 +314,9 @@ func NewDnsServer(config app.AppConfig, state app.AppState) DnsServer {
 
 	if config.DnsOverHttpEnable {
 		mux := http.NewServeMux()
+		if config.EnableHealthEndpoint {
+			mux.HandleFunc("/health", server.handleHealthHTTP)
+		}
 		mux.HandleFunc("/", server.handleDnsOverHTTP)
 		mux.HandleFunc("/dns-query", server.handleDnsOverHTTP)
 		mux.HandleFunc("/{auth}", server.handleDnsOverHTTP)

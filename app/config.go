@@ -69,7 +69,8 @@ type AppConfig struct {
 	// resolver fails to resolve them so an outage of upstream
 	// DNS doesn't cause a full network failure. Enabling this
 	// also enables PredictiveCache.
-	ResilientCache bool `json:"resilient_cache"`
+	ResilientCache       bool `json:"resilient_cache"`
+	EnableHealthEndpoint bool `json:"enable_health_endpoint"`
 	// If not empty, spuddns will periodically flush its cache to
 	// this path and will load it at start to persist the cache between
 	// restarts.
@@ -145,7 +146,7 @@ func (cfg *AppConfig) prepare() error {
 	if len(skip_cache_regexes) > 0 {
 		skip_cache_regex, err := regexp.Compile(fmt.Sprintf("(?i)%s", strings.Join(skip_cache_regexes, "|")))
 		if err != nil {
-			fmt.Printf("failed to compile cache exclude regex: %s", err)
+			panic(fmt.Sprintf("failed to compile cache exclude regex: %s", err))
 		}
 		if skip_cache_regex != nil {
 			cfg.skip_cache_regex = skip_cache_regex
